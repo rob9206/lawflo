@@ -37,6 +37,11 @@ export function masteryBg(score: number): string {
 export function cleanMarkdown(text: string): string {
   if (!text) return text;
 
+  // Strip complete performance blocks.
+  text = text.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
+  // Strip incomplete performance blocks that can appear while streaming.
+  text = text.replace(/<performance>[\s\S]*$/g, "").trim();
+
   // Fix concatenated words (lowercase followed by uppercase)
   text = text.replace(/([a-z])([A-Z])/g, "$1 $2");
 

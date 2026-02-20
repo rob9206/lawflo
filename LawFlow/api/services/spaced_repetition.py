@@ -170,12 +170,24 @@ def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]
         chunks_query = db.query(KnowledgeChunk).filter(
             KnowledgeChunk.subject == subject
         )
+        
+        # Only filter by weak topics if they exist AND match chunks
         if weak_topic_names:
             chunks_query = chunks_query.filter(
                 KnowledgeChunk.topic.in_(weak_topic_names)
             )
-
-        chunks = chunks_query.limit(max_chunks * 2).all()
+            chunks = chunks_query.limit(max_chunks * 2).all()
+            
+            # If no chunks found with weak topics, fall back to any chunks for this subject
+            if not chunks:
+                logger.info(f"No chunks found for weak topics {weak_topic_names}, using all subject chunks")
+                chunks_query = db.query(KnowledgeChunk).filter(
+                    KnowledgeChunk.subject == subject
+                )
+                chunks = chunks_query.limit(max_chunks * 2).all()
+        else:
+            # No weak topics tracked yet, use any chunks for this subject
+            chunks = chunks_query.limit(max_chunks * 2).all()
 
         # Filter out chunks that already have cards
         new_chunks = [c for c in chunks if c.id not in existing_chunk_ids][:max_chunks]

@@ -8,6 +8,7 @@ import {
   BookOpen,
   CreditCard,
   BarChart2,
+  FileQuestion,
   Sun,
   Moon,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { useTheme } from "@/context/ThemeContext";
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/auto-teach", icon: Zap, label: "AutoTeach" },
+  { to: "/exam", icon: FileQuestion, label: "Exam Sim" },
   { to: "/subjects", icon: BookOpen, label: "Subjects" },
   { to: "/tutor", icon: GraduationCap, label: "AI Tutor" },
   { to: "/flashcards", icon: CreditCard, label: "Flashcards" },

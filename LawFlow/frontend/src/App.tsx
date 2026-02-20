@@ -15,6 +15,7 @@ const SubjectsListPage = lazy(() =>
 const SubjectDetailPage = lazy(() =>
   import("@/pages/SubjectsPage").then((m) => ({ default: m.SubjectDetailPage }))
 );
+const ExamSimulatorPage = lazy(() => import("@/pages/ExamSimulatorPage"));
 
 function Loading() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/progress" element={<ProgressPage />} />
             <Route path="/subjects" element={<SubjectsListPage />} />
             <Route path="/subjects/:subject" element={<SubjectDetailPage />} />
+            <Route path="/exam" element={<ExamSimulatorPage />} />
           </Routes>
         </Suspense>
       </Layout>
