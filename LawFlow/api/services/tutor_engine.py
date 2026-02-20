@@ -28,6 +28,9 @@ def _clean_markdown(text: str) -> str:
     """
     if not text:
         return text
+
+    # Remove performance metadata blocks before markdown processing.
+    text = re.sub(r"<performance>[\s\S]*?</performance>", "", text).strip()
     
     # Fix concatenated words (words stuck together without spaces)
     # Pattern: lowercase letter followed by uppercase letter (e.g., "wordWord" -> "word Word")
@@ -49,10 +52,6 @@ def _clean_markdown(text: str) -> str:
     
     # Fix markdown headers that are missing spaces (e.g., "##Header" -> "## Header")
     text = re.sub(r'(#{1,6})([A-Za-z])', r'\1 \2', text)
-    
-    # Fix broken markdown patterns like "**word" without closing
-    # This is a simple fix - in production you might want more sophisticated parsing
-    text = re.sub(r'\*\*([^*\n]+)(?:\n|$)', r'**\1**\n', text, flags=re.MULTILINE)
     
     # Remove extra whitespace but preserve intentional blank lines
     lines = text.split('\n')

@@ -171,7 +171,7 @@ export default function AutoTeachPage() {
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm"
+                className="max-w-[90%] rounded-2xl px-4 py-3 text-sm"
                 style={
                   msg.role === "user"
                     ? { backgroundColor: "var(--accent)", color: "#fff" }
@@ -183,7 +183,7 @@ export default function AutoTeachPage() {
                 }
               >
                 {msg.role === "assistant" ? (
-                  <div className="prose-tutor">
+                  <div className="prose-tutor leading-relaxed">
                     <ReactMarkdown>{cleanMarkdown(msg.content)}</ReactMarkdown>
                   </div>
                 ) : (
@@ -196,14 +196,14 @@ export default function AutoTeachPage() {
           {streaming && streamingText && (
             <div className="flex justify-start">
               <div
-                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm"
+                className="max-w-[90%] rounded-2xl px-4 py-3 text-sm"
                 style={{
                   backgroundColor: "var(--bg-card)",
                   border: "1px solid var(--border)",
                   color: "var(--text-primary)",
                 }}
               >
-                <div className="prose-tutor">
+                <div className="prose-tutor leading-relaxed">
                   <ReactMarkdown>
                     {cleanMarkdown(streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, ""))}
                   </ReactMarkdown>
