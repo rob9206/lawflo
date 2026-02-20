@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { getTeachingPlan, startAutoSession, type TeachingPlan, type TeachingTarget } from "@/api/autoTeach";
 import { getMastery } from "@/api/progress";
 import { sendMessageStream } from "@/api/tutor";
-import { masteryColor } from "@/lib/utils";
+import { masteryColor, cleanMarkdown } from "@/lib/utils";
 import {
   Zap,
   Target,
@@ -46,6 +46,7 @@ export default function AutoTeachPage() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -69,26 +70,34 @@ export default function AutoTeachPage() {
     setStreaming(true);
     setStreamingText("");
     setMessages([]);
+    setSessionError(null);
 
     let accumulated = "";
 
-    await startAutoSession(
-      selectedSubject,
-      topic,
-      (chunk) => {
-        accumulated += chunk;
-        setStreamingText(accumulated);
-      },
-      (sid, mode, resolvedTopic) => {
-        const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
-        setSessionId(sid);
-        setSessionMode(mode);
-        setSessionTopic(resolvedTopic);
-        setMessages([{ role: "assistant", content: clean }]);
-        setStreamingText("");
-        setStreaming(false);
-      }
-    );
+    try {
+      await startAutoSession(
+        selectedSubject,
+        topic,
+        (chunk) => {
+          accumulated += chunk;
+          setStreamingText(accumulated);
+        },
+        (sid, mode, resolvedTopic) => {
+          const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
+          setSessionId(sid);
+          setSessionMode(mode);
+          setSessionTopic(resolvedTopic);
+          setMessages([{ role: "assistant", content: clean }]);
+          setStreamingText("");
+          setStreaming(false);
+        }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to start session";
+      setSessionError(msg);
+      setStreaming(false);
+      setStreamingText("");
+    }
   };
 
   const sendMessage = async () => {
@@ -102,20 +111,29 @@ export default function AutoTeachPage() {
 
     let accumulated = "";
 
-    await sendMessageStream(
-      sessionId,
-      userContent,
-      (chunk) => {
-        accumulated += chunk;
-        setStreamingText(accumulated);
-      },
-      () => {
-        const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
-        setMessages((prev) => [...prev, { role: "assistant", content: clean }]);
-        setStreamingText("");
-        setStreaming(false);
-      }
-    );
+    try {
+      await sendMessageStream(
+        sessionId,
+        userContent,
+        (chunk) => {
+          accumulated += chunk;
+          setStreamingText(accumulated);
+        },
+        () => {
+          const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
+          setMessages((prev) => [...prev, { role: "assistant", content: clean }]);
+          setStreamingText("");
+          setStreaming(false);
+        }
+      );
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Something went wrong. Please try again." },
+      ]);
+      setStreamingText("");
+      setStreaming(false);
+    }
   };
 
   // Active session
@@ -166,7 +184,7 @@ export default function AutoTeachPage() {
               >
                 {msg.role === "assistant" ? (
                   <div className="prose-tutor">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown>{cleanMarkdown(msg.content)}</ReactMarkdown>
                   </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -187,7 +205,7 @@ export default function AutoTeachPage() {
               >
                 <div className="prose-tutor">
                   <ReactMarkdown>
-                    {streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, "")}
+                    {cleanMarkdown(streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, ""))}
                   </ReactMarkdown>
                 </div>
               </div>
@@ -350,11 +368,24 @@ export default function AutoTeachPage() {
             </div>
           </div>
 
+          {sessionError && (
+            <div
+              className="mb-4 px-4 py-3 rounded-xl text-sm"
+              style={{
+                backgroundColor: "rgba(239,68,68,0.10)",
+                border: "1px solid rgba(239,68,68,0.35)",
+                color: "#f87171",
+              }}
+            >
+              {sessionError}
+            </div>
+          )}
+
           {plan.auto_session && (
             <button
               onClick={() => startSession()}
               disabled={streaming}
-              className="w-full mb-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-amber-900/20"
+              className="w-full mb-6 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-amber-900/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Zap size={20} />
               Start Studying — {plan.teaching_plan[0]?.display_name}
@@ -370,6 +401,7 @@ export default function AutoTeachPage() {
                 rank={i + 1}
                 hasExamData={plan.has_exam_data}
                 onStart={() => startSession(target.topic)}
+                disabled={streaming}
               />
             ))}
           </div>
@@ -384,11 +416,13 @@ function TopicRow({
   rank,
   hasExamData,
   onStart,
+  disabled,
 }: {
   target: TeachingTarget;
   rank: number;
   hasExamData: boolean;
   onStart: () => void;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -441,7 +475,8 @@ function TopicRow({
 
       <button
         onClick={onStart}
-        className="shrink-0 p-2 rounded-lg transition-colors"
+        disabled={disabled}
+        className="shrink-0 p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         style={{
           backgroundColor: "var(--bg-muted)",
           color: "var(--text-muted)",

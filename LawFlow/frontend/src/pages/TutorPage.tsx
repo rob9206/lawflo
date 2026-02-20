@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { createSession, getSession, sendMessageStream, getModes } from "@/api/tutor";
+import { cleanMarkdown } from "@/lib/utils";
 import {
   Send,
   GraduationCap,
@@ -258,7 +259,7 @@ export default function TutorPage() {
             >
               {msg.role === "assistant" ? (
                 <div className="prose-tutor">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown>{cleanMarkdown(msg.content)}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -279,7 +280,7 @@ export default function TutorPage() {
             >
               <div className="prose-tutor">
                 <ReactMarkdown>
-                  {streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, "")}
+                  {cleanMarkdown(streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, ""))}
                 </ReactMarkdown>
               </div>
             </div>

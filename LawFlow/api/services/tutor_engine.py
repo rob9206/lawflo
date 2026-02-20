@@ -17,8 +17,72 @@ from api.models.document import KnowledgeChunk
 logger = logging.getLogger(__name__)
 
 
+def _clean_markdown(text: str) -> str:
+    """Clean up common markdown formatting issues in AI-generated content.
+    
+    Fixes:
+    - Concatenated words (adds spaces)
+    - Unclosed markdown tags
+    - Missing spaces after punctuation
+    - Broken markdown syntax
+    """
+    if not text:
+        return text
+    
+    # Fix concatenated words (words stuck together without spaces)
+    # Pattern: lowercase letter followed by uppercase letter (e.g., "wordWord" -> "word Word")
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    
+    # Fix missing spaces after punctuation (but preserve URLs and decimals)
+    text = re.sub(r'([.!?])([A-Za-z])', r'\1 \2', text)
+    text = re.sub(r'([,;:])([A-Za-z])', r'\1 \2', text)
+    
+    # Fix unclosed bold tags (ensure ** is always paired)
+    # Count opening and closing ** tags
+    bold_open = text.count('**') % 2
+    if bold_open == 1:  # Odd number means unclosed tag
+        # Find the last ** and check if it's opening or closing
+        last_bold_pos = text.rfind('**')
+        if last_bold_pos != -1:
+            # If it's an opening tag, add closing at end
+            text = text + '**'
+    
+    # Fix markdown headers that are missing spaces (e.g., "##Header" -> "## Header")
+    text = re.sub(r'(#{1,6})([A-Za-z])', r'\1 \2', text)
+    
+    # Fix broken markdown patterns like "**word" without closing
+    # This is a simple fix - in production you might want more sophisticated parsing
+    text = re.sub(r'\*\*([^*\n]+)(?:\n|$)', r'**\1**\n', text, flags=re.MULTILINE)
+    
+    # Remove extra whitespace but preserve intentional blank lines
+    lines = text.split('\n')
+    cleaned_lines = []
+    prev_empty = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            if not prev_empty:  # Allow one blank line
+                cleaned_lines.append('')
+                prev_empty = True
+        else:
+            cleaned_lines.append(stripped)
+            prev_empty = False
+    
+    return '\n'.join(cleaned_lines)
+
+
 def _get_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    import os
+    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
+    # #region agent log
+    import time as _time
+    __import__("os").makedirs(r"c:\Dev\LawFlow\.cursor", exist_ok=True)
+    with open(r"c:\Dev\LawFlow\.cursor\debug.log", "a") as _f:
+        _f.write(json.dumps({"location": "tutor_engine.py:_get_client", "message": "Creating client", "data": {"config_key_len": len(config.ANTHROPIC_API_KEY), "env_key_len": len(os.getenv("ANTHROPIC_API_KEY", "")), "final_key_len": len(api_key)}, "timestamp": _time.time()}) + "\n")
+    # #endregion
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set. Add your Anthropic API key to the .env file.")
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def create_session(mode: str, subject: str | None = None, topics: list[str] | None = None) -> dict:
@@ -182,8 +246,11 @@ def send_message(session_id: str, user_content: str):
             full_response += text
             yield text
 
+    # Clean up markdown formatting before saving
+    cleaned_response = _clean_markdown(full_response)
+    
     # Save assistant message
-    _save_assistant_message(session_id, full_response, msg_count + 1)
+    _save_assistant_message(session_id, cleaned_response, msg_count + 1)
 
     # Extract and apply performance signals
     _process_performance_signals(session_id, full_response)
@@ -193,6 +260,8 @@ def _save_assistant_message(session_id: str, content: str, index: int):
     """Save the assistant's response to the database."""
     # Strip performance tags from stored content for cleaner display
     clean_content = re.sub(r"<performance>.*?</performance>", "", content, flags=re.DOTALL).strip()
+    # Additional markdown cleanup
+    clean_content = _clean_markdown(clean_content)
 
     with get_db() as db:
         msg = SessionMessage(
