@@ -1,0 +1,122 @@
+import api from "@/lib/api";
+
+export interface TeachingTarget {
+  subject: string;
+  topic: string;
+  display_name: string;
+  priority_score: number;
+  mastery: number;
+  exam_weight: number;
+  recommended_mode: string;
+  mode_reason: string;
+  knowledge_chunks_available: number;
+  time_estimate_minutes: number;
+}
+
+export interface TeachingPlan {
+  subject: string;
+  subject_display: string;
+  has_exam_data: boolean;
+  teaching_plan: TeachingTarget[];
+  total_estimated_minutes: number;
+  auto_session: {
+    mode: string;
+    subject: string;
+    topics: string[];
+    opening_message: string;
+  } | null;
+}
+
+export interface ExamBlueprint {
+  id: string;
+  document_id: string;
+  subject: string;
+  exam_title: string | null;
+  exam_format: string | null;
+  total_questions: number | null;
+  time_limit_minutes: number | null;
+  professor_patterns: string | null;
+  high_yield_summary: string | null;
+  topics_tested: {
+    topic: string;
+    weight: number;
+    question_format: string | null;
+    difficulty: number;
+    notes: string | null;
+  }[];
+}
+
+export async function getTeachingPlan(
+  subject: string,
+  params?: { max_topics?: number; available_minutes?: number }
+): Promise<TeachingPlan> {
+  const { data } = await api.get(`/auto-teach/plan/${subject}`, { params });
+  return data;
+}
+
+export async function getNextTopic(subject: string): Promise<TeachingTarget | null> {
+  const { data } = await api.get(`/auto-teach/next/${subject}`);
+  return data;
+}
+
+export async function startAutoSession(
+  subject: string,
+  topic?: string,
+  onChunk?: (text: string) => void,
+  onDone?: (sessionId: string, mode: string, topic: string) => void
+): Promise<void> {
+  const response = await fetch("/api/auto-teach/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject, topic }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Auto-teach error: ${response.status}`);
+  }
+
+  const sessionId = response.headers.get("X-Session-Id") || "";
+  const mode = response.headers.get("X-Tutor-Mode") || "";
+  const resolvedTopic = response.headers.get("X-Topic") || "";
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const text = line.slice(6);
+        if (text === "[DONE]") {
+          onDone?.(sessionId, mode, resolvedTopic);
+          return;
+        }
+        if (!text.startsWith("[ERROR]")) {
+          onChunk?.(text);
+        }
+      }
+    }
+  }
+  onDone?.(sessionId, mode, resolvedTopic);
+}
+
+export async function analyzeExam(documentId: string): Promise<ExamBlueprint> {
+  const { data } = await api.post(`/auto-teach/exam/analyze/${documentId}`);
+  return data;
+}
+
+export async function getExamBlueprints(subject?: string): Promise<ExamBlueprint[]> {
+  const { data } = await api.get("/auto-teach/exam/blueprints", {
+    params: subject ? { subject } : undefined,
+  });
+  return data;
+}
