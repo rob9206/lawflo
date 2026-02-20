@@ -28,11 +28,13 @@ TEXT EXCERPT:
 
 
 def _get_client() -> anthropic.Anthropic:
-    if not config.ANTHROPIC_API_KEY:
+    import os
+    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
         raise RuntimeError(
             "ANTHROPIC_API_KEY is not set. Add your Anthropic API key to the .env file."
         )
-    return anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def tag_chunk(content: str) -> dict:
