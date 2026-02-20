@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { getTeachingPlan, startAutoSession, type TeachingPlan, type TeachingTarget } from "@/api/autoTeach";
 import { getMastery } from "@/api/progress";
 import { sendMessageStream } from "@/api/tutor";
-import { masteryColor, masteryBg } from "@/lib/utils";
+import { masteryColor } from "@/lib/utils";
 import {
   Zap,
   Target,
@@ -40,7 +40,6 @@ export default function AutoTeachPage() {
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [availableMinutes, setAvailableMinutes] = useState<number>(60);
 
-  // Active session state
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionMode, setSessionMode] = useState("");
   const [sessionTopic, setSessionTopic] = useState("");
@@ -65,7 +64,6 @@ export default function AutoTeachPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
 
-  // Start an auto-teach session for a topic
   const startSession = async (topic?: string) => {
     if (!selectedSubject) return;
     setStreaming(true);
@@ -93,7 +91,6 @@ export default function AutoTeachPage() {
     );
   };
 
-  // Send a follow-up message
   const sendMessage = async () => {
     if (!input.trim() || !sessionId || streaming) return;
 
@@ -121,26 +118,32 @@ export default function AutoTeachPage() {
     );
   };
 
-  // ── If in an active session, show the chat ──
+  // Active session
   if (sessionId) {
     return (
       <div className="flex flex-col h-[calc(100vh-3rem)]">
-        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+        <div
+          className="flex items-center justify-between pb-4"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
           <div className="flex items-center gap-3">
             <Zap size={20} className="text-amber-400" />
             <div>
-              <h2 className="font-semibold">AutoTeach Session</h2>
-              <p className="text-xs text-zinc-500">
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                AutoTeach Session
+              </h2>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {MODE_LABELS[sessionMode] || sessionMode} · {sessionTopic}
               </p>
             </div>
           </div>
           <button
-            onClick={() => {
-              setSessionId(null);
-              setMessages([]);
+            onClick={() => { setSessionId(null); setMessages([]); }}
+            className="text-xs px-3 py-1 rounded-lg transition-colors"
+            style={{
+              color: "var(--text-muted)",
+              border: "1px solid var(--border)",
             }}
-            className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-1 border border-zinc-700 rounded-lg"
           >
             Back to Plan
           </button>
@@ -149,35 +152,61 @@ export default function AutoTeachPage() {
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                msg.role === "user"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-zinc-900 border border-zinc-800 text-zinc-200"
-              }`}>
+              <div
+                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm"
+                style={
+                  msg.role === "user"
+                    ? { backgroundColor: "var(--accent)", color: "#fff" }
+                    : {
+                        backgroundColor: "var(--bg-card)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-primary)",
+                      }
+                }
+              >
                 {msg.role === "assistant" ? (
-                  <div className="prose-tutor"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                  <div className="prose-tutor">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
               </div>
             </div>
           ))}
+
           {streaming && streamingText && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm">
+              <div
+                className="max-w-[80%] rounded-2xl px-4 py-3 text-sm"
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                }}
+              >
                 <div className="prose-tutor">
-                  <ReactMarkdown>{streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, "")}</ReactMarkdown>
+                  <ReactMarkdown>
+                    {streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, "")}
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>
           )}
+
           {streaming && !streamingText && (
             <div className="flex justify-start">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
+              <div
+                className="rounded-2xl px-4 py-3"
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border)",
+                }}
+              >
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce" />
-                  <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce [animation-delay:300ms]" />
+                  <span className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: "var(--text-muted)" }} />
+                  <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms]" style={{ backgroundColor: "var(--text-muted)" }} />
+                  <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms]" style={{ backgroundColor: "var(--text-muted)" }} />
                 </div>
               </div>
             </div>
@@ -185,20 +214,28 @@ export default function AutoTeachPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="pt-4 border-t border-zinc-800">
+        <div className="pt-4" style={{ borderTop: "1px solid var(--border)" }}>
           <div className="flex gap-2">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+              }}
               placeholder="Ask a follow-up, answer a question, or say 'next topic'..."
               rows={2}
-              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              className="flex-1 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: "var(--bg-input)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              }}
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim() || streaming}
-              className="self-end bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white p-3 rounded-xl"
+              className="self-end p-3 rounded-xl text-white disabled:opacity-40"
+              style={{ backgroundColor: "var(--accent)" }}
             >
               <Send size={18} />
             </button>
@@ -208,14 +245,18 @@ export default function AutoTeachPage() {
     );
   }
 
-  // ── Subject selection + teaching plan ──
+  // Subject selection + teaching plan
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
         <Zap size={24} className="text-amber-400" />
         <div>
-          <h2 className="text-2xl font-bold">AutoTeach</h2>
-          <p className="text-sm text-zinc-500">AI-optimized study sessions that teach you exactly what you need</p>
+          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+            AutoTeach
+          </h2>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            AI-optimized study sessions that teach you exactly what you need
+          </p>
         </div>
       </div>
 
@@ -227,14 +268,19 @@ export default function AutoTeachPage() {
             <button
               key={s.value}
               onClick={() => setSelectedSubject(s.value)}
-              className={`text-left px-4 py-3 rounded-xl border transition-colors ${
-                selectedSubject === s.value
-                  ? "bg-amber-500/10 border-amber-500 text-amber-400"
-                  : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"
-              }`}
+              className="text-left px-4 py-3 rounded-xl transition-all"
+              style={{
+                backgroundColor:
+                  selectedSubject === s.value ? "rgba(245,158,11,0.10)" : "var(--bg-card)",
+                border: `1px solid ${selectedSubject === s.value ? "#f59e0b" : "var(--border)"}`,
+                color: selectedSubject === s.value ? "#fbbf24" : "var(--text-primary)",
+              }}
             >
               <p className="text-sm font-medium">{s.label}</p>
-              <p className={`text-xs mt-0.5 ${m ? masteryColor(m.mastery_score) : "text-zinc-500"}`}>
+              <p
+                className={`text-xs mt-0.5 ${m ? masteryColor(m.mastery_score) : ""}`}
+                style={!m ? { color: "var(--text-muted)" } : undefined}
+              >
                 {m ? `${m.mastery_score.toFixed(0)}% mastery` : "Not started"}
               </p>
             </button>
@@ -244,38 +290,53 @@ export default function AutoTeachPage() {
 
       {/* Time budget */}
       {selectedSubject && (
-        <div className="flex items-center gap-4 mb-6 p-4 bg-zinc-900 border border-zinc-800 rounded-xl">
-          <Clock size={18} className="text-zinc-400" />
-          <span className="text-sm text-zinc-400">I have</span>
+        <div
+          className="flex items-center gap-4 mb-6 p-4 rounded-xl"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <Clock size={18} style={{ color: "var(--text-muted)" }} />
+          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            I have
+          </span>
           <div className="flex gap-2">
             {[30, 60, 90, 120].map((mins) => (
               <button
                 key={mins}
                 onClick={() => setAvailableMinutes(mins)}
-                className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                  availableMinutes === mins
-                    ? "bg-amber-500/15 text-amber-400 border border-amber-500"
-                    : "bg-zinc-800 text-zinc-400 border border-zinc-700"
-                }`}
+                className="px-3 py-1 rounded-lg text-sm transition-all"
+                style={{
+                  backgroundColor:
+                    availableMinutes === mins ? "rgba(245,158,11,0.15)" : "var(--bg-muted)",
+                  color: availableMinutes === mins ? "#fbbf24" : "var(--text-secondary)",
+                  border: `1px solid ${availableMinutes === mins ? "#f59e0b" : "var(--border)"}`,
+                }}
               >
                 {mins}m
               </button>
             ))}
           </div>
-          <span className="text-sm text-zinc-400">to study</span>
+          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            to study
+          </span>
         </div>
       )}
 
-      {/* Teaching plan */}
-      {planLoading && <div className="text-zinc-500 animate-pulse">Computing optimal study plan...</div>}
+      {planLoading && (
+        <div className="animate-pulse" style={{ color: "var(--text-muted)" }}>
+          Computing optimal study plan...
+        </div>
+      )}
 
       {plan && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">
+            <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
               Study Plan — {plan.subject_display}
             </h3>
-            <div className="flex items-center gap-4 text-sm text-zinc-500">
+            <div className="flex items-center gap-4 text-sm" style={{ color: "var(--text-muted)" }}>
               <span className="flex items-center gap-1">
                 <Clock size={14} />
                 {plan.total_estimated_minutes}m total
@@ -289,7 +350,6 @@ export default function AutoTeachPage() {
             </div>
           </div>
 
-          {/* Big "Start Studying" button */}
           {plan.auto_session && (
             <button
               onClick={() => startSession()}
@@ -302,7 +362,6 @@ export default function AutoTeachPage() {
             </button>
           )}
 
-          {/* Topic list */}
           <div className="space-y-2">
             {plan.teaching_plan.map((target, i) => (
               <TopicRow
@@ -332,31 +391,45 @@ function TopicRow({
   onStart: () => void;
 }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center gap-4">
-      {/* Rank */}
-      <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-400">
+    <div
+      className="rounded-xl p-4 flex items-center gap-4"
+      style={{
+        backgroundColor: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+        style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
+      >
         {rank}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-medium">{target.display_name}</p>
-          <span className={`text-xs px-2 py-0.5 rounded-full ${masteryBg(target.mastery)} ${masteryColor(target.mastery)}`}>
+          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+            {target.display_name}
+          </p>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full ${masteryColor(target.mastery)}`}
+            style={{ backgroundColor: "var(--bg-muted)" }}
+          >
             {target.mastery.toFixed(0)}%
           </span>
-          <span className="text-xs bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full">
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
+          >
             {MODE_LABELS[target.recommended_mode] || target.recommended_mode}
           </span>
         </div>
-        <p className="text-xs text-zinc-500 mt-0.5">
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
           {target.mode_reason}
           {hasExamData && ` · ${(target.exam_weight * 100).toFixed(0)}% of exam`}
         </p>
       </div>
 
-      {/* Metadata */}
-      <div className="text-right text-xs text-zinc-500 shrink-0">
+      <div className="text-right text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
         <p>{target.time_estimate_minutes}m</p>
         {target.knowledge_chunks_available > 0 && (
           <p className="flex items-center gap-1 justify-end">
@@ -366,10 +439,13 @@ function TopicRow({
         )}
       </div>
 
-      {/* Start button */}
       <button
         onClick={onStart}
-        className="shrink-0 p-2 bg-zinc-800 hover:bg-indigo-600 rounded-lg text-zinc-400 hover:text-white transition-colors"
+        className="shrink-0 p-2 rounded-lg transition-colors"
+        style={{
+          backgroundColor: "var(--bg-muted)",
+          color: "var(--text-muted)",
+        }}
       >
         <ChevronRight size={18} />
       </button>

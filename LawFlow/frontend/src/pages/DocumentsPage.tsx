@@ -1,9 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDropzone, FileRejection } from "react-dropzone";
 import { listDocuments, uploadDocument, deleteDocument } from "@/api/documents";
+import { convertDocument, downloadConvertedFile } from "@/api/converter";
 import { formatDate } from "@/lib/utils";
-import { Upload, FileText, Trash2, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Upload, FileText, Trash2, Loader2, CheckCircle, AlertCircle, Download } from "lucide-react";
 
 const SUBJECTS = [
   { value: "", label: "Auto-detect" },
@@ -30,11 +31,28 @@ export default function DocumentsPage() {
   const queryClient = useQueryClient();
   const [subject, setSubject] = useState("");
   const [docType, setDocType] = useState("");
+  const [convertingDoc, setConvertingDoc] = useState<string | null>(null);
+  const [showConvertMenu, setShowConvertMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowConvertMenu(null);
+      }
+    };
+
+    if (showConvertMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showConvertMenu]);
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["documents"],
     queryFn: () => listDocuments(),
-    refetchInterval: 5000, // Poll for processing status
+    refetchInterval: 5000,
   });
 
   const uploadMutation = useMutation({
@@ -52,25 +70,44 @@ export default function DocumentsPage() {
     },
   });
 
+  const handleConvert = async (docId: string, format: "pdf" | "png" | "txt" | "md") => {
+    setConvertingDoc(docId);
+    setShowConvertMenu(null);
+    try {
+      const result = await convertDocument(docId, format);
+      
+      if (result.download_url) {
+        // Extract filename from download_url
+        const filename = result.download_url.split("/").pop();
+        if (filename) {
+          const downloadUrl = downloadConvertedFile(docId, filename);
+          window.open(downloadUrl, "_blank");
+        }
+      }
+      
+      alert(result.message);
+    } catch (error: any) {
+      alert(`Conversion failed: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setConvertingDoc(null);
+    }
+  };
+
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: FileRejection[]) => {
-      // Handle accepted files
       for (const file of acceptedFiles) {
         uploadMutation.mutate(file);
       }
-      
-      // Handle rejected files - check if they're valid by extension (MIME type might be wrong)
       for (const rejection of fileRejections) {
-        if (rejection.errors.some(e => e.code === 'file-invalid-type')) {
-          const ext = rejection.file.name.split('.').pop()?.toLowerCase();
-          if (ext === 'pptx' || ext === 'pdf' || ext === 'docx') {
-            // File extension is valid, accept it anyway despite MIME type mismatch
+        if (rejection.errors.some((e) => e.code === "file-invalid-type")) {
+          const ext = rejection.file.name.split(".").pop()?.toLowerCase();
+          if (ext === "pptx" || ext === "pdf" || ext === "docx") {
             uploadMutation.mutate(rejection.file);
           }
         }
       }
     },
-    [uploadMutation, subject, docType]
+    [uploadMutation]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -88,32 +125,59 @@ export default function DocumentsPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Documents</h2>
+      <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
+        Documents
+      </h2>
 
       {/* Upload zone */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
+      <div
+        className="rounded-xl p-6 mb-6"
+        style={{
+          backgroundColor: "var(--bg-card)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Subject</label>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
+              Subject
+            </label>
             <select
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+              style={{
+                backgroundColor: "var(--bg-muted)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              }}
             >
               {SUBJECTS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-xs text-zinc-400 mb-1 block">Document Type</label>
+            <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
+              Document Type
+            </label>
             <select
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+              style={{
+                backgroundColor: "var(--bg-muted)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              }}
             >
               {DOC_TYPES.map((d) => (
-                <option key={d.value} value={d.value}>{d.label}</option>
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
               ))}
             </select>
           </div>
@@ -121,28 +185,30 @@ export default function DocumentsPage() {
 
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-            isDragActive
-              ? "border-indigo-500 bg-indigo-500/10"
-              : "border-zinc-700 hover:border-zinc-600"
-          }`}
+          className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
+          style={{
+            borderColor: isDragActive ? "var(--accent)" : "var(--border)",
+            backgroundColor: isDragActive ? "var(--accent-muted)" : "transparent",
+          }}
         >
           <input {...getInputProps()} />
-          <Upload size={32} className="mx-auto mb-3 text-zinc-500" />
-          <p className="text-zinc-300">
+          <Upload size={32} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
+          <p style={{ color: "var(--text-secondary)" }}>
             {isDragActive
               ? "Drop files here..."
               : "Drag & drop PDF, PPTX, or DOCX files here"}
           </p>
-          <p className="text-xs text-zinc-500 mt-1">Or click to browse. Max 100MB.</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            Or click to browse. Max 100MB.
+          </p>
         </div>
       </div>
 
       {/* Document list */}
       {isLoading ? (
-        <div className="text-zinc-500">Loading documents...</div>
+        <div style={{ color: "var(--text-muted)" }}>Loading documents...</div>
       ) : docs.length === 0 ? (
-        <div className="text-zinc-500 text-center py-8">
+        <div className="text-center py-8" style={{ color: "var(--text-muted)" }}>
           No documents uploaded yet. Upload your first casebook, slides, or outline above.
         </div>
       ) : (
@@ -150,19 +216,90 @@ export default function DocumentsPage() {
           {docs.map((doc) => (
             <div
               key={doc.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 flex items-center gap-4"
+              className="rounded-lg px-4 py-3 flex items-center gap-4"
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border)",
+              }}
             >
-              <FileText size={20} className="text-zinc-500 shrink-0" />
+              <FileText size={20} className="shrink-0" style={{ color: "var(--text-muted)" }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{doc.filename}</p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                  {doc.filename}
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {doc.subject || "untagged"} · {doc.file_type} · {formatDate(doc.created_at)}
                 </p>
               </div>
-              <StatusBadge status={doc.processing_status} chunks={doc.total_chunks} errorMessage={doc.error_message} />
+              <StatusBadge
+                status={doc.processing_status}
+                chunks={doc.total_chunks}
+                errorMessage={doc.error_message}
+              />
+              
+              {/* Convert button for PPTX files */}
+              {doc.file_type === "pptx" && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowConvertMenu(showConvertMenu === doc.id ? null : doc.id)}
+                    disabled={convertingDoc === doc.id}
+                    className="p-1.5 transition-colors rounded hover:bg-opacity-10"
+                    style={{ color: "var(--accent)" }}
+                    title="Convert to another format"
+                  >
+                    {convertingDoc === doc.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                  </button>
+                  
+                  {showConvertMenu === doc.id && (
+                    <div
+                      className="absolute right-0 mt-1 py-1 rounded-lg shadow-lg z-10"
+                      style={{
+                        backgroundColor: "var(--bg-card)",
+                        border: "1px solid var(--border)",
+                        minWidth: "140px",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleConvert(doc.id, "pdf")}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Convert to PDF
+                      </button>
+                      <button
+                        onClick={() => handleConvert(doc.id, "png")}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Convert to Images
+                      </button>
+                      <button
+                        onClick={() => handleConvert(doc.id, "txt")}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Convert to Text
+                      </button>
+                      <button
+                        onClick={() => handleConvert(doc.id, "md")}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Convert to Markdown
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <button
                 onClick={() => deleteMutation.mutate(doc.id)}
-                className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+                className="p-1 transition-colors"
+                style={{ color: "var(--text-muted)" }}
               >
                 <Trash2 size={16} />
               </button>
@@ -174,7 +311,15 @@ export default function DocumentsPage() {
   );
 }
 
-function StatusBadge({ status, chunks, errorMessage }: { status: string; chunks: number; errorMessage?: string | null }) {
+function StatusBadge({
+  status,
+  chunks,
+  errorMessage,
+}: {
+  status: string;
+  chunks: number;
+  errorMessage?: string | null;
+}) {
   switch (status) {
     case "completed":
       return (
@@ -201,8 +346,6 @@ function StatusBadge({ status, chunks, errorMessage }: { status: string; chunks:
         </span>
       );
     default:
-      return (
-        <span className="text-xs text-zinc-500 px-2.5 py-1">Pending</span>
-      );
+      return <span className="text-xs px-2.5 py-1" style={{ color: "var(--text-muted)" }}>Pending</span>;
   }
 }

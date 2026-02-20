@@ -75,6 +75,22 @@ def send_message():
     return Response(generate(), mimetype="text/event-stream")
 
 
+@bp.route("/recent", methods=["GET"])
+def recent_sessions():
+    """Get the most recent study sessions."""
+    limit = request.args.get("limit", 5, type=int)
+    from api.services.database import get_db
+    from api.models.session import StudySession
+    with get_db() as db:
+        sessions = (
+            db.query(StudySession)
+            .order_by(StudySession.started_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return jsonify([s.to_dict() for s in sessions])
+
+
 @bp.route("/session/<session_id>/end", methods=["POST"])
 def end_session(session_id: str):
     """End a tutoring session."""

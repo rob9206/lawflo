@@ -25,6 +25,11 @@ export async function endSession(sessionId: string): Promise<TutorSession> {
   return data;
 }
 
+export async function getRecentSessions(limit = 5): Promise<TutorSession[]> {
+  const { data } = await api.get("/tutor/recent", { params: { limit } });
+  return data;
+}
+
 export async function sendMessageStream(
   sessionId: string,
   content: string,

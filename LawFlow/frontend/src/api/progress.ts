@@ -24,3 +24,25 @@ export async function getWeaknesses(limit?: number): Promise<TopicMastery[]> {
   });
   return data;
 }
+
+export interface DailyHistory {
+  date: string;
+  minutes: number;
+  sessions: number;
+}
+
+export async function getStudyHistory(days = 30): Promise<DailyHistory[]> {
+  const { data } = await api.get("/progress/history", { params: { days } });
+  return data;
+}
+
+export interface StreakData {
+  current_streak: number;
+  longest_streak: number;
+  total_days: number;
+}
+
+export async function getStreaks(): Promise<StreakData> {
+  const { data } = await api.get("/progress/streaks");
+  return data;
+}

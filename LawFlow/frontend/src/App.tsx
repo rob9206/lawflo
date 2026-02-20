@@ -7,11 +7,22 @@ const DocumentsPage = lazy(() => import("@/pages/DocumentsPage"));
 const TutorPage = lazy(() => import("@/pages/TutorPage"));
 const KnowledgePage = lazy(() => import("@/pages/KnowledgePage"));
 const AutoTeachPage = lazy(() => import("@/pages/AutoTeachPage"));
+const FlashcardPage = lazy(() => import("@/pages/FlashcardPage"));
+const ProgressPage = lazy(() => import("@/pages/ProgressPage"));
+const SubjectsListPage = lazy(() =>
+  import("@/pages/SubjectsPage").then((m) => ({ default: m.SubjectsListPage }))
+);
+const SubjectDetailPage = lazy(() =>
+  import("@/pages/SubjectsPage").then((m) => ({ default: m.SubjectDetailPage }))
+);
 
 function Loading() {
   return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-pulse text-zinc-500">Loading...</div>
+    <div
+      className="flex items-center justify-center h-64"
+      style={{ color: "var(--text-muted)" }}
+    >
+      <div className="animate-pulse">Loading...</div>
     </div>
   );
 }
@@ -29,6 +40,10 @@ export default function App() {
             <Route path="/tutor/:sessionId" element={<TutorPage />} />
             <Route path="/auto-teach" element={<AutoTeachPage />} />
             <Route path="/knowledge" element={<KnowledgePage />} />
+            <Route path="/flashcards" element={<FlashcardPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/subjects" element={<SubjectsListPage />} />
+            <Route path="/subjects/:subject" element={<SubjectDetailPage />} />
           </Routes>
         </Suspense>
       </Layout>
