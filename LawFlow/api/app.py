@@ -44,12 +44,14 @@ def create_app() -> Flask:
     from api.routes.progress import bp as progress_bp
     from api.routes.knowledge import bp as knowledge_bp
     from api.routes.auto_teach import bp as auto_teach_bp
+    from api.routes.review import bp as review_bp
 
     app.register_blueprint(documents_bp)
     app.register_blueprint(tutor_bp)
     app.register_blueprint(progress_bp)
     app.register_blueprint(knowledge_bp)
     app.register_blueprint(auto_teach_bp)
+    app.register_blueprint(review_bp)
 
     # Initialize database on first request
     with app.app_context():

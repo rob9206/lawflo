@@ -61,9 +61,17 @@ def start_auto_session():
         next_t = get_next_topic(subject)
         if not next_t:
             return jsonify({"error": f"No topics found for {subject}"}), 404
+        auto_session = next_t.get("auto_session")
+        if not auto_session:
+            return jsonify({
+                "error": (
+                    f"No study session could be generated for {subject}. "
+                    "Try a longer time budget."
+                )
+            }), 422
         topic = next_t["topic"]
         mode = next_t["recommended_mode"]
-        opening = next_t["auto_session"]["opening_message"]
+        opening = auto_session["opening_message"]
     else:
         # Compute mode for the specified topic
         from api.services.auto_teach import select_teaching_mode, compute_priority

@@ -100,9 +100,10 @@ export async function startAutoSession(
           onDone?.(sessionId, mode, resolvedTopic);
           return;
         }
-        if (!text.startsWith("[ERROR]")) {
-          onChunk?.(text);
+        if (text.startsWith("[ERROR]")) {
+          throw new Error(text.slice(7).trim() || "Auto-teach session error");
         }
+        onChunk?.(text);
       }
     }
   }
