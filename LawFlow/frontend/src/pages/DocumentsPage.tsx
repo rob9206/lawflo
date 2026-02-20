@@ -239,7 +239,7 @@ export default function DocumentsPage() {
               
               {/* Convert button for PPTX files */}
               {doc.file_type === "pptx" && (
-                <div className="relative">
+                <div className="relative" ref={showConvertMenu === doc.id ? menuRef : null}>
                   <button
                     onClick={() => setShowConvertMenu(showConvertMenu === doc.id ? null : doc.id)}
                     disabled={convertingDoc === doc.id}
@@ -260,36 +260,36 @@ export default function DocumentsPage() {
                       style={{
                         backgroundColor: "var(--bg-card)",
                         border: "1px solid var(--border)",
-                        minWidth: "140px",
+                        minWidth: "160px",
                       }}
                     >
                       <button
                         onClick={() => handleConvert(doc.id, "pdf")}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        Convert to PDF
+                        📄 Convert to PDF
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "png")}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        Convert to Images
+                        🖼️ Convert to Images
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "txt")}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        Convert to Text
+                        📝 Convert to Text
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "md")}
-                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-opacity-10 transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        Convert to Markdown
+                        📋 Convert to Markdown
                       </button>
                     </div>
                   )}

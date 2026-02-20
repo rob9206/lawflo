@@ -4,7 +4,7 @@ import os
 import uuid
 import threading
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 from api.config import config
 from api.errors import ValidationError, NotFoundError
@@ -12,6 +12,7 @@ from api.services.database import get_db
 from api.models.document import Document, KnowledgeChunk
 from api.services.document_processor import extract_document, chunk_sections
 from api.services.knowledge_builder import tag_chunks_batch
+from api.services.document_converter import convert_document
 
 bp = Blueprint("documents", __name__, url_prefix="/api/documents")
 
@@ -168,3 +169,85 @@ def delete_document(doc_id: str):
 
         db.delete(doc)
         return jsonify({"deleted": True})
+
+
+@bp.route("/<doc_id>/convert", methods=["POST"])
+def convert_doc(doc_id: str):
+    """Convert a document to a different format.
+    
+    Request body:
+    {
+        "format": "pdf" | "png" | "txt" | "md"
+    }
+    
+    Returns the converted file for download or info about generated files.
+    """
+    with get_db() as db:
+        doc = db.query(Document).filter_by(id=doc_id).first()
+        if not doc:
+            raise NotFoundError("Document not found")
+        
+        if doc.file_type != "pptx":
+            raise ValidationError("Only PPTX files can be converted currently")
+    
+    data = request.get_json() or {}
+    output_format = data.get("format", "pdf")
+    
+    if output_format not in ["pdf", "png", "txt", "md"]:
+        raise ValidationError(f"Invalid format. Allowed: pdf, png, txt, md")
+    
+    try:
+        # Generate output path
+        output_dir = os.path.join(config.UPLOAD_DIR, "converted")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        base_name = os.path.splitext(os.path.basename(doc.file_path))[0]
+        
+        if output_format == "png":
+            output_path = os.path.join(output_dir, f"{base_name}_slides")
+        else:
+            output_path = os.path.join(output_dir, f"{base_name}.{output_format}")
+        
+        # Perform conversion
+        result_path = convert_document(doc.file_path, output_format, output_path)
+        
+        # For image conversion, return list of files
+        if output_format == "png":
+            image_files = sorted([f for f in os.listdir(result_path) if f.endswith('.png')])
+            return jsonify({
+                "format": output_format,
+                "message": f"Converted to {len(image_files)} images",
+                "files": image_files,
+                "download_url": f"/api/documents/{doc_id}/converted/{os.path.basename(result_path)}"
+            })
+        
+        # For single file formats, offer download
+        return jsonify({
+            "format": output_format,
+            "message": "Conversion successful",
+            "download_url": f"/api/documents/{doc_id}/download/{os.path.basename(result_path)}"
+        })
+    
+    except Exception as e:
+        raise ValidationError(f"Conversion failed: {str(e)}")
+
+
+@bp.route("/<doc_id>/download/<filename>", methods=["GET"])
+def download_converted(doc_id: str, filename: str):
+    """Download a converted file."""
+    with get_db() as db:
+        doc = db.query(Document).filter_by(id=doc_id).first()
+        if not doc:
+            raise NotFoundError("Document not found")
+    
+    converted_dir = os.path.join(config.UPLOAD_DIR, "converted")
+    file_path = os.path.join(converted_dir, filename)
+    
+    if not os.path.exists(file_path):
+        raise NotFoundError("Converted file not found")
+    
+    # Security check: ensure file is within converted directory
+    if not os.path.abspath(file_path).startswith(os.path.abspath(converted_dir)):
+        raise ValidationError("Invalid file path")
+    
+    return send_file(file_path, as_attachment=True, download_name=filename)
