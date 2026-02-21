@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import anthropic
 
 from api.config import config
+from api.services.claude_client import get_claude_client
 from api.services.database import get_db
 from api.services.auto_teach import compute_priority
 from api.services.exam_analyzer import get_aggregated_topic_weights, get_exam_blueprints
@@ -169,11 +170,7 @@ Respond with ONLY a JSON object (no markdown fencing):
 # ── Service Functions ───────────────────────────────────────────────────────
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-    return anthropic.Anthropic(api_key=api_key)
+    return get_claude_client()
 
 
 def generate_exam(

@@ -9,6 +9,7 @@ import anthropic
 
 from api.config import config
 from api.services.prompt_library import build_system_prompt, build_student_context, build_knowledge_context, build_exam_context
+from api.services.claude_client import get_claude_client
 from api.services.database import get_db
 from api.models.session import StudySession, SessionMessage
 from api.models.student import SubjectMastery, TopicMastery
@@ -71,17 +72,7 @@ def _clean_markdown(text: str) -> str:
 
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    # #region agent log
-    import time as _time
-    __import__("os").makedirs(r"c:\Dev\LawFlow\.cursor", exist_ok=True)
-    with open(r"c:\Dev\LawFlow\.cursor\debug.log", "a") as _f:
-        _f.write(json.dumps({"location": "tutor_engine.py:_get_client", "message": "Creating client", "data": {"config_key_len": len(config.ANTHROPIC_API_KEY), "env_key_len": len(os.getenv("ANTHROPIC_API_KEY", "")), "final_key_len": len(api_key)}, "timestamp": _time.time()}) + "\n")
-    # #endregion
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set. Add your Anthropic API key to the .env file.")
-    return anthropic.Anthropic(api_key=api_key)
+    return get_claude_client()
 
 
 def create_session(mode: str, subject: str | None = None, topics: list[str] | None = None) -> dict:

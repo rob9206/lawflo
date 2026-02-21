@@ -110,7 +110,7 @@ def convert_pptx_to_images(input_path: str, output_dir: str) -> list[str]:
         try:
             title_font = ImageFont.truetype("arial.ttf", 60)
             body_font = ImageFont.truetype("arial.ttf", 40)
-        except:
+        except Exception:
             title_font = ImageFont.load_default()
             body_font = ImageFont.load_default()
         

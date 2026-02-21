@@ -247,7 +247,7 @@ def download_converted(doc_id: str, filename: str):
         raise NotFoundError("Converted file not found")
     
     # Security check: ensure file is within converted directory
-    if not os.path.abspath(file_path).startswith(os.path.abspath(converted_dir)):
+    if not os.path.abspath(file_path).startswith(os.path.abspath(converted_dir) + os.sep):
         raise ValidationError("Invalid file path")
     
     return send_file(file_path, as_attachment=True, download_name=filename)
