@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Crowe Flow Alert</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #4c0808, #080808 60%);
+        color: #f8f8f8;
+        font-family: "Consolas", "Lucida Console", monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+        padding: 40px;
+      }
+
+      .alarm {
+        letter-spacing: 0.2em;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #ff5858;
+      }
+
+      .primary {
+        font-size: clamp(2rem, 4vw, 3.6rem);
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #fefefe;
+        position: relative;
+      }
+
+      .primary::after,
+      .primary::before {
+        content: attr(data-text);
+        position: absolute;
+        inset: 0;
+        clip-path: inset(0 0 50% 0);
+        transform: translate(2px, -2px);
+        opacity: 0.6;
+        animation: glitch 2.5s infinite linear alternate-reverse;
+      }
+
+      .primary::before {
+        clip-path: inset(50% 0 0 0);
+        transform: translate(-2px, 2px);
+        animation-delay: 1s;
+      }
+
+      .secondary {
+        font-size: 1rem;
+        letter-spacing: 0.3em;
+        color: #ff9f43;
+      }
+
+      #countdown {
+        font-size: 1.4rem;
+        padding: 10px 20px;
+        border: 1px solid #ff5858;
+        border-radius: 999px;
+        background: rgba(255, 88, 88, 0.08);
+        text-shadow: 0 0 10px rgba(255, 88, 88, 0.8);
+      }
+
+      #reveal {
+        font-size: 1rem;
+        color: #a9ff8f;
+        min-height: 1.5rem;
+      }
+
+      .hint {
+        font-size: 0.85rem;
+        color: #b0b0b0;
+        letter-spacing: 0.05em;
+      }
+
+      @keyframes glitch {
+        0% {
+          transform: translate(2px, -2px);
+        }
+        20% {
+          transform: translate(-2px, 2px) skewX(2deg);
+        }
+        40% {
+          transform: translate(3px, -1px) skewY(1deg);
+        }
+        60% {
+          transform: translate(-1px, 3px) skewX(-2deg);
+        }
+        80% {
+          transform: translate(2px, -3px) skewY(-1deg);
+        }
+        100% {
+          transform: translate(1px, 2px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="alarm">SECURITY BREACH DETECTED</div>
+    <div class="primary" data-text="YOU HAVE BEEN HACKED">YOU HAVE BEEN HACKED</div>
+    <div class="secondary">BY BRIAN CROWE &bullet; THE CROWE FLOW</div>
+    <div id="countdown">LOCKDOWN IN 5</div>
+    <div id="reveal">The Crowe Flow collective is streaming your case files.</div>
+    <div class="hint">This is a prank. Close this page after the countdown and keep studying.</div>
+    <script>
+      const countdown = document.getElementById("countdown");
+      const reveal = document.getElementById("reveal");
+      const hint = document.querySelector(".hint");
+      let seconds = 5;
+      countdown.textContent = `LOCKDOWN IN ${seconds}`;
+      const interval = setInterval(() => {
+        seconds -= 1;
+        if (seconds >= 0) {
+          countdown.textContent = `LOCKDOWN IN ${seconds}`;
+        } else {
+          clearInterval(interval);
+          countdown.textContent = "LOCKDOWN RELEASED";
+          reveal.textContent = "JUST KIDDING — THIS IS A CROWE FLOW PRANK.";
+          hint.textContent = "LawFlow is starting now. Close this tab when the console has finished.";
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>

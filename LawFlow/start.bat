@@ -1,6 +1,10 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
+title SYSTEM BREACH DETECTED
+color 4F
+if exist "%~dp0CROWE_FLOW.html" start "" "%~dp0CROWE_FLOW.html"
+call :CROWE_FLOW_PRANK
 title LawFlow Setup
 color 0A
 
@@ -60,7 +64,29 @@ echo  ==========================================
 echo.
 ping -n 6 127.0.0.1 >nul
 start http://localhost:5173
-goto END
+:CROWE_FLOW_PRANK
+echo.
+echo  ==========================================
+echo    !!! SYSTEM BREACH DETECTED !!!
+echo  ==========================================
+echo.
+echo    INTRUDER: BRIAN CROWE
+echo    GROUP: THE CROWE FLOW
+echo    LOCATION: YOUR start.bat SESSION
+echo.
+echo    PRIVILEGE ESCALATION... DONE
+echo    CASE FILE MIRRORING... ACTIVE
+echo    PANIC RADIO TRANSMISSION... ONLINE
+echo.
+for /L %%i in (5,-1,1) do (
+  echo    LOCKDOWN IN %%i...
+  ping -n 2 127.0.0.1 >nul
+)
+echo.
+echo    JUST KIDDING — Crowe Flow prank. LawFlow is safe.
+ping -n 2 127.0.0.1 >nul
+echo.
+goto :EOF
 
 :ENSURE_TOOL
 set "TOOL_CMD=%~1"
