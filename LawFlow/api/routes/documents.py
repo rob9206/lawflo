@@ -3,6 +3,7 @@
 import os
 import uuid
 import threading
+from pathlib import Path
 
 from flask import Blueprint, request, jsonify, send_file
 
@@ -247,7 +248,7 @@ def download_converted(doc_id: str, filename: str):
         raise NotFoundError("Converted file not found")
     
     # Security check: ensure file is within converted directory
-    if not os.path.abspath(file_path).startswith(os.path.abspath(converted_dir) + os.sep):
+    if not Path(file_path).resolve().is_relative_to(Path(converted_dir).resolve()):
         raise ValidationError("Invalid file path")
     
     return send_file(file_path, as_attachment=True, download_name=filename)
