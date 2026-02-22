@@ -90,6 +90,9 @@ def create_app(static_dir: str | None = None) -> Flask:
         from api.services.achievement_definitions import seed_achievements
         seed_achievements()
 
+        from api.services.subject_taxonomy import seed_subject_taxonomy
+        seed_subject_taxonomy()
+
     return app
 
 

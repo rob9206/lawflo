@@ -148,11 +148,18 @@ def generate_teaching_plan(
         # Get all topics for this subject with mastery data
         topics = db.query(TopicMastery).filter_by(subject=subject).all()
 
+        subject_record = db.query(SubjectMastery).filter_by(subject=subject).first()
+        subject_display = subject_record.display_name if subject_record else subject
+
         if not topics:
             return {
-                "teaching_plan": [],
+                "subject": subject,
+                "subject_display": subject_display,
                 "has_exam_data": False,
-                "message": f"No topics found for {subject}. Run the seed script first.",
+                "teaching_plan": [],
+                "total_estimated_minutes": 0,
+                "auto_session": None,
+                "message": f"No topics found for {subject}.",
             }
 
         # Count available knowledge chunks per topic
@@ -164,9 +171,6 @@ def generate_teaching_plan(
                 .count()
             )
             chunk_counts[t.topic] = count
-
-        subject_record = db.query(SubjectMastery).filter_by(subject=subject).first()
-        subject_display = subject_record.display_name if subject_record else subject
 
     # Build teaching targets
     targets: list[TeachingTarget] = []

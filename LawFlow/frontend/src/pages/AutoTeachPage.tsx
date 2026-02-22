@@ -311,7 +311,13 @@ export default function AutoTeachPage() {
         <div className="animate-pulse text-ui-muted">Computing optimal study plan...</div>
       )}
 
-      {plan && (
+      {plan && plan.teaching_plan.length === 0 && (
+        <Card className="text-center py-8 text-ui-muted text-sm">
+          No study topics found for this subject. The database may still be initializing — try refreshing in a moment.
+        </Card>
+      )}
+
+      {plan && plan.teaching_plan.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-ui-primary">
