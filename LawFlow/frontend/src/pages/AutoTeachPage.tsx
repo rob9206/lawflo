@@ -336,7 +336,7 @@ export default function AutoTeachPage() {
 
       {plan && plan.teaching_plan.length === 0 && !planError && (
         <Card className="text-center py-8 text-ui-muted text-sm">
-          No study topics found for this subject. The database may still be initializing — try refreshing in a moment.
+          {plan.message ?? "No study topics found for this subject. The database may still be initializing — try refreshing in a moment."}
         </Card>
       )}
 

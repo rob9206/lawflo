@@ -19,6 +19,8 @@ export interface TeachingPlan {
   has_exam_data: boolean;
   teaching_plan: TeachingTarget[];
   total_estimated_minutes: number;
+  /** Shown when teaching_plan is empty (e.g. "No topics found. Run the seed script first.") */
+  message?: string;
   auto_session: {
     mode: string;
     subject: string;

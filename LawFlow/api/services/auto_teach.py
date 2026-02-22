@@ -159,7 +159,10 @@ def generate_teaching_plan(
                 "teaching_plan": [],
                 "total_estimated_minutes": 0,
                 "auto_session": None,
-                "message": f"No topics found for {subject}.",
+                "message": (
+                    f"No topics found for {subject}. "
+                    "Restart the backend to run the seed (subjects/topics are seeded on startup)."
+                ),
             }
 
         # Count available knowledge chunks per topic
