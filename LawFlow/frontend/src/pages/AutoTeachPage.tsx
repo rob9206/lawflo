@@ -47,7 +47,7 @@ export default function AutoTeachPage() {
     queryFn: getMastery,
   });
 
-  const { data: plan, isLoading: planLoading } = useQuery({
+  const { data: plan, isLoading: planLoading, isError: planError, error: planErrorDetail } = useQuery({
     queryKey: ["teaching-plan", selectedSubject, availableMinutes],
     queryFn: () => getTeachingPlan(selectedSubject!, { available_minutes: availableMinutes }),
     enabled: !!selectedSubject,
@@ -325,7 +325,16 @@ export default function AutoTeachPage() {
         <div className="animate-pulse text-ui-muted">Computing optimal study plan...</div>
       )}
 
-      {plan && plan.teaching_plan.length === 0 && (
+      {planError && (
+        <Card className="text-center py-8 border-red-500/30 bg-red-500/5">
+          <p className="text-red-400 font-medium mb-1">Couldn&apos;t load study plan</p>
+          <p className="text-sm text-ui-muted">
+            {planErrorDetail instanceof Error ? planErrorDetail.message : "Check your connection and try again."}
+          </p>
+        </Card>
+      )}
+
+      {plan && plan.teaching_plan.length === 0 && !planError && (
         <Card className="text-center py-8 text-ui-muted text-sm">
           No study topics found for this subject. The database may still be initializing — try refreshing in a moment.
         </Card>
