@@ -543,7 +543,7 @@ def complete_exam(assessment_id: str) -> dict:
         db.flush()
 
         # Update mastery scores based on exam performance
-        _update_mastery_from_exam(assessment.subject, topic_scores)
+        _update_mastery_from_exam(db, assessment.subject, topic_scores)
 
         result = assessment.to_dict()
         result["questions"] = [q.to_dict() for q in questions]
@@ -565,45 +565,44 @@ def complete_exam(assessment_id: str) -> dict:
     return result
 
 
-def _update_mastery_from_exam(subject: str, topic_scores: dict[str, list[float]]):
+def _update_mastery_from_exam(db, subject: str, topic_scores: dict[str, list[float]]):
     """Update mastery scores based on exam performance.
 
     Exam results are a strong signal — a 90% score on an exam question
     is more reliable than a single flashcard review. We weight exam
     performance more heavily in mastery updates.
     """
-    with get_db() as db:
-        for topic_name, scores in topic_scores.items():
-            avg_score = sum(scores) / len(scores)
+    for topic_name, scores in topic_scores.items():
+        avg_score = sum(scores) / len(scores)
 
-            topic = db.query(TopicMastery).filter_by(
-                subject=subject, topic=topic_name
-            ).first()
-            if not topic:
-                continue
+        topic = db.query(TopicMastery).filter_by(
+            subject=subject, topic=topic_name
+        ).first()
+        if not topic:
+            continue
 
-            # Exam-weighted mastery update
-            # Blend current mastery with exam score (exam gets 40% weight)
-            new_mastery = topic.mastery_score * 0.6 + avg_score * 0.4
-            topic.mastery_score = max(0, min(100, new_mastery))
-            topic.exposure_count += len(scores)
-            topic.last_studied_at = datetime.now(timezone.utc)
+        # Exam-weighted mastery update
+        # Blend current mastery with exam score (exam gets 40% weight)
+        new_mastery = topic.mastery_score * 0.6 + avg_score * 0.4
+        topic.mastery_score = max(0, min(100, new_mastery))
+        topic.exposure_count += len(scores)
+        topic.last_studied_at = datetime.now(timezone.utc)
 
-            # Count correct/incorrect
-            for s in scores:
-                if s >= 60:
-                    topic.correct_count += 1
-                else:
-                    topic.incorrect_count += 1
+        # Count correct/incorrect
+        for s in scores:
+            if s >= 60:
+                topic.correct_count += 1
+            else:
+                topic.incorrect_count += 1
 
-        # Update subject-level mastery
-        subj = db.query(SubjectMastery).filter_by(subject=subject).first()
-        if subj:
-            all_topics = db.query(TopicMastery).filter_by(subject=subject).all()
-            if all_topics:
-                subj.mastery_score = sum(t.mastery_score for t in all_topics) / len(all_topics)
-            subj.assessments_count += 1
-            subj.last_studied_at = datetime.now(timezone.utc)
+    # Update subject-level mastery
+    subj = db.query(SubjectMastery).filter_by(subject=subject).first()
+    if subj:
+        all_topics = db.query(TopicMastery).filter_by(subject=subject).all()
+        if all_topics:
+            subj.mastery_score = sum(t.mastery_score for t in all_topics) / len(all_topics)
+        subj.assessments_count += 1
+        subj.last_studied_at = datetime.now(timezone.utc)
 
 
 def get_exam_results(assessment_id: str) -> dict | None:
