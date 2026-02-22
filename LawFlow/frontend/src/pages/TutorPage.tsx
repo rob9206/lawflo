@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { createSession, getSession, sendMessageStream, getModes } from "@/api/tutor";
-import { cleanMarkdown } from "@/lib/utils";
+import { cleanMarkdown, cn } from "@/lib/utils";
+import { SUBJECTS_SHORT, MODE_LABELS } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import PageHeader from "@/components/ui/PageHeader";
+import SubjectFilter from "@/components/ui/SubjectFilter";
 import {
   Send,
   GraduationCap,
@@ -24,18 +28,6 @@ const MODE_ICONS: Record<string, React.ReactNode> = {
   explain: <Lightbulb size={16} />,
   exam_strategy: <BookOpen size={16} />,
 };
-
-const SUBJECTS = [
-  { value: "", label: "Any subject" },
-  { value: "con_law", label: "Con Law" },
-  { value: "contracts", label: "Contracts" },
-  { value: "torts", label: "Torts" },
-  { value: "crim_law", label: "Crim Law" },
-  { value: "civ_pro", label: "Civ Pro" },
-  { value: "property", label: "Property" },
-  { value: "evidence", label: "Evidence" },
-  { value: "prof_responsibility", label: "Prof. Resp." },
-];
 
 export default function TutorPage() {
   const { sessionId: paramSessionId } = useParams();
@@ -133,73 +125,48 @@ export default function TutorPage() {
     }
   };
 
-  // Session setup screen
   if (!sessionId) {
     return (
       <div>
-        <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
-          AI Tutor
-        </h2>
+        <PageHeader icon={<GraduationCap size={24} />} title="AI Tutor" />
 
-        <div className="max-w-2xl">
-          <h3 className="text-sm font-medium mb-3" style={{ color: "var(--text-secondary)" }}>
-            Study Mode
-          </h3>
+        <div className="max-w-2xl mt-6">
+          <h3 className="text-sm font-medium mb-3 text-ui-secondary">Study Mode</h3>
           <div className="grid grid-cols-3 gap-2 mb-6">
             {modes &&
               Object.entries(modes).map(([key, mode]) => (
-                <button
+                <Card
                   key={key}
+                  padding="none"
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2.5 text-sm text-left cursor-pointer transition-all",
+                    selectedMode === key
+                      ? "ring-1 ring-[var(--accent)] bg-[var(--accent-muted)] text-accent-label"
+                      : "text-ui-secondary"
+                  )}
                   onClick={() => setSelectedMode(key)}
-                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-left transition-all"
-                  style={{
-                    backgroundColor:
-                      selectedMode === key ? "var(--accent-muted)" : "var(--bg-card)",
-                    border: `1px solid ${selectedMode === key ? "var(--accent)" : "var(--border)"}`,
-                    color: selectedMode === key ? "var(--accent-text)" : "var(--text-secondary)",
-                  }}
                 >
                   {MODE_ICONS[key] || <GraduationCap size={16} />}
                   <div>
                     <p className="font-medium">{mode.name}</p>
-                    <p
-                      className="text-xs mt-0.5 line-clamp-2"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <p className="text-xs mt-0.5 line-clamp-2 text-ui-muted">
                       {mode.description}
                     </p>
                   </div>
-                </button>
+                </Card>
               ))}
           </div>
 
-          <h3 className="text-sm font-medium mb-2" style={{ color: "var(--text-secondary)" }}>
-            Subject Focus
-          </h3>
-          <div className="flex flex-wrap gap-2 mb-6">
-            {SUBJECTS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setSelectedSubject(s.value)}
-                className="px-3 py-1.5 rounded-lg text-sm transition-all"
-                style={{
-                  backgroundColor:
-                    selectedSubject === s.value ? "var(--accent-muted)" : "var(--bg-card)",
-                  color:
-                    selectedSubject === s.value ? "var(--accent-text)" : "var(--text-secondary)",
-                  border: `1px solid ${selectedSubject === s.value ? "var(--accent)" : "var(--border)"}`,
-                }}
-              >
-                {s.label}
-              </button>
-            ))}
+          <h3 className="text-sm font-medium mb-2 text-ui-secondary">Subject Focus</h3>
+          <div className="mb-6">
+            <SubjectFilter
+              subjects={SUBJECTS_SHORT}
+              selected={selectedSubject}
+              onSelect={setSelectedSubject}
+            />
           </div>
 
-          <button
-            onClick={startSession}
-            className="w-full font-semibold py-3 px-6 rounded-xl transition-colors text-white"
-            style={{ backgroundColor: "var(--accent)" }}
-          >
+          <button onClick={startSession} className="btn-primary w-full py-3">
             Start Study Session
           </button>
         </div>
@@ -207,34 +174,26 @@ export default function TutorPage() {
     );
   }
 
-  // Chat interface
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)]">
-      {/* Header */}
-      <div
-        className="flex items-center gap-3 pb-4"
-        style={{ borderBottom: "1px solid var(--border)" }}
-      >
-        <GraduationCap size={20} style={{ color: "var(--accent-text)" }} />
+      <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
+        <GraduationCap size={20} className="text-accent-label" />
         <div>
-          <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
-            AI Tutor Session
-          </h2>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {selectedMode} · {selectedSubject || "all subjects"}
+          <h2 className="font-semibold text-ui-primary">AI Tutor Session</h2>
+          <p className="text-xs text-ui-muted">
+            {MODE_LABELS[selectedMode] ?? selectedMode} · {selectedSubject || "all subjects"}
           </p>
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4">
         {messages.length === 0 && !streaming && (
           <div className="text-center py-12">
-            <GraduationCap size={40} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
-            <p style={{ color: "var(--text-muted)" }}>
+            <GraduationCap size={40} className="mx-auto mb-3 text-ui-muted" />
+            <p className="text-ui-muted">
               Start by asking a question or describing what you want to study.
             </p>
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs mt-1 text-ui-muted">
               Try: "Teach me consideration in contracts" or "Quiz me on negligence elements"
             </p>
           </div>
@@ -289,36 +248,20 @@ export default function TutorPage() {
 
         {streaming && !streamingText && (
           <div className="flex justify-start">
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border)",
-              }}
-            >
+            <Card padding="none" className="rounded-2xl px-4 py-3">
               <div className="flex gap-1">
-                <span
-                  className="w-2 h-2 rounded-full animate-bounce"
-                  style={{ backgroundColor: "var(--text-muted)" }}
-                />
-                <span
-                  className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms]"
-                  style={{ backgroundColor: "var(--text-muted)" }}
-                />
-                <span
-                  className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms]"
-                  style={{ backgroundColor: "var(--text-muted)" }}
-                />
+                <span className="w-2 h-2 rounded-full animate-bounce bg-[var(--text-muted)]" />
+                <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:150ms] bg-[var(--text-muted)]" />
+                <span className="w-2 h-2 rounded-full animate-bounce [animation-delay:300ms] bg-[var(--text-muted)]" />
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+      <div className="pt-4 border-t border-[var(--border)]">
         <div className="flex gap-2">
           <textarea
             value={input}
@@ -326,18 +269,13 @@ export default function TutorPage() {
             onKeyDown={handleKeyDown}
             placeholder="Ask a question, answer a prompt, or describe what to study..."
             rows={2}
-            className="flex-1 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: "var(--bg-input)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-            }}
+            className="input-base flex-1 rounded-xl px-4 py-3 text-sm resize-none"
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim() || streaming}
-            className="self-end p-3 rounded-xl text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="btn-primary self-end p-3 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Send message"
           >
             <Send size={18} />
           </button>

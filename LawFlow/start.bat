@@ -1,68 +1,61 @@
 @echo off
-cd /d %~dp0
+setlocal EnableExtensions EnableDelayedExpansion
+cd /d "%~dp0"
+title SYSTEM BREACH DETECTED
+color 4F
+if exist "%~dp0CROWE_FLOW.html" start "" "%~dp0CROWE_FLOW.html"
+call :CROWE_FLOW_PRANK
 title LawFlow Setup
 color 0A
 
+set "PYTHON_WINGET_ID=Python.Python.3.12"
+set "NODE_WINGET_ID=OpenJS.NodeJS.LTS"
+
 echo.
 echo  ==========================================
-echo    LawFlow - Starting up...
+echo    LawFlow - One-Click Startup
 echo  ==========================================
 echo.
 
-:: ---- Check Python ----
-python --version >nul 2>&1
-if %errorlevel% neq 0 goto NO_PYTHON
+call :ENSURE_TOOL python "%PYTHON_WINGET_ID%" "Python 3"
+if errorlevel 1 goto END
 
-:: ---- Check Node ----
-node --version >nul 2>&1
-if %errorlevel% neq 0 goto NO_NODE
+call :ENSURE_TOOL node "%NODE_WINGET_ID%" "Node.js LTS"
+if errorlevel 1 goto END
 
-:: ---- Create .env if missing ----
-if not exist .env goto MAKE_ENV
+call :ENSURE_ENV_FILE
+if errorlevel 1 goto END
 
-:: ---- Check API key is still placeholder ----
-findstr /C:"sk-ant-your-key-here" .env >nul 2>&1
-if %errorlevel% equ 0 goto NEEDS_KEY
+call :ENSURE_API_KEY
+if errorlevel 1 goto END
 
-:: ---- Create Python virtual environment ----
-if not exist venv\Scripts\python.exe goto MAKE_VENV
-goto VENV_DONE
+if not exist "venv\Scripts\python.exe" (
+  echo [SETUP] Creating Python virtual environment...
+  python -m venv venv
+  if errorlevel 1 goto VENV_FAIL
+)
 
-:MAKE_VENV
-echo [SETUP] Creating Python virtual environment...
-python -m venv venv
-if %errorlevel% neq 0 goto VENV_FAIL
-
-:VENV_DONE
-
-:: ---- Install Python deps ----
 echo [SETUP] Installing Python dependencies...
-venv\Scripts\pip.exe install -r requirements.txt -q --disable-pip-version-check
-if %errorlevel% neq 0 goto PIP_FAIL
+"venv\Scripts\pip.exe" install -r requirements.txt -q --disable-pip-version-check
+if errorlevel 1 goto PIP_FAIL
 
-:: ---- Create data directories ----
-if not exist data\uploads md data\uploads
-if not exist data\processed md data\processed
+if not exist "data\uploads" md "data\uploads"
+if not exist "data\processed" md "data\processed"
 
-:: ---- Install frontend deps ----
-if exist frontend\node_modules goto FRONTEND_DONE
-echo [SETUP] Installing frontend dependencies (this may take a minute)...
-pushd frontend
-npm install
-if %errorlevel% neq 0 goto NPM_FAIL
-popd
+if not exist "frontend\node_modules" (
+  echo [SETUP] Installing frontend dependencies (this may take a minute)...
+  pushd "frontend"
+  npm install
+  if errorlevel 1 goto NPM_FAIL
+  popd
+)
 
-:FRONTEND_DONE
-
-:: ---- Start backend ----
 echo [START] Launching backend on http://127.0.0.1:5002 ...
 start "LawFlow Backend" cmd /k "cd /d %~dp0 && title LawFlow Backend && venv\Scripts\python.exe api\app.py"
 
-:: ---- Start frontend ----
 echo [START] Launching frontend on http://localhost:5173 ...
 start "LawFlow Frontend" cmd /k "cd /d %~dp0\frontend && title LawFlow Frontend && npm run dev"
 
-:: ---- Open browser ----
 echo.
 echo  ==========================================
 echo    LawFlow is starting!
@@ -71,32 +64,123 @@ echo  ==========================================
 echo.
 ping -n 6 127.0.0.1 >nul
 start http://localhost:5173
-goto END
+:CROWE_FLOW_PRANK
+echo.
+echo  ==========================================
+echo    !!! SYSTEM BREACH DETECTED !!!
+echo  ==========================================
+echo.
+echo    INTRUDER: BRIAN CROWE
+echo    GROUP: THE CROWE FLOW
+echo    LOCATION: YOUR start.bat SESSION
+echo.
+echo    PRIVILEGE ESCALATION... DONE
+echo    CASE FILE MIRRORING... ACTIVE
+echo    PANIC RADIO TRANSMISSION... ONLINE
+echo.
+for /L %%i in (5,-1,1) do (
+  echo    LOCKDOWN IN %%i...
+  ping -n 2 127.0.0.1 >nul
+)
+echo.
+echo    JUST KIDDING — Crowe Flow prank. LawFlow is safe.
+ping -n 2 127.0.0.1 >nul
+echo.
+goto :EOF
 
-:MAKE_ENV
+:ENSURE_TOOL
+set "TOOL_CMD=%~1"
+set "WINGET_ID=%~2"
+set "TOOL_NAME=%~3"
+
+where "%TOOL_CMD%" >nul 2>&1
+if %errorlevel% equ 0 goto :EOF
+
+echo [SETUP] %TOOL_NAME% not found. Attempting auto-install via winget...
+where winget >nul 2>&1
+if %errorlevel% neq 0 goto NO_WINGET
+
+winget install -e --id %WINGET_ID% --accept-source-agreements --accept-package-agreements
+if errorlevel 1 goto INSTALL_FAIL
+
+call :REFRESH_PATH
+where "%TOOL_CMD%" >nul 2>&1
+if %errorlevel% neq 0 goto INSTALL_FAIL
+goto :EOF
+
+:REFRESH_PATH
+for /f "delims=" %%P in ('powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"') do (
+  set "PATH=%%P"
+)
+goto :EOF
+
+:ENSURE_ENV_FILE
+if exist ".env" goto :EOF
 echo [SETUP] Creating .env from template...
-copy .env.example .env >nul
-goto NEEDS_KEY
+if exist ".env.example" (
+  copy ".env.example" ".env" >nul
+) else (
+  echo ANTHROPIC_API_KEY=sk-ant-your-key-here>.env
+)
+if not exist ".env" goto ENV_FAIL
+goto :EOF
 
-:NEEDS_KEY
+:ENSURE_API_KEY
+set "CURRENT_KEY="
+for /f "tokens=1,* delims==" %%A in ('findstr /B /I "ANTHROPIC_API_KEY=" ".env"') do (
+  set "CURRENT_KEY=%%B"
+)
+
+if not defined CURRENT_KEY goto PROMPT_API_KEY
+if /I "%CURRENT_KEY%"=="sk-ant-your-key-here" goto PROMPT_API_KEY
+goto :EOF
+
+:PROMPT_API_KEY
+echo [SETUP] Prompting for Anthropic API key...
+set "INPUT_KEY="
+for /f "usebackq delims=" %%K in (`powershell -NoProfile -Command "Add-Type -AssemblyName Microsoft.VisualBasic; [Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $k=[Microsoft.VisualBasic.Interaction]::InputBox('Enter your Anthropic API key (starts with sk-ant-):','LawFlow setup',''); Write-Output $k"`) do (
+  set "INPUT_KEY=%%K"
+)
+
+if not defined INPUT_KEY (
+  echo [ERROR] Anthropic API key is required.
+  goto API_KEY_FAIL
+)
+
+powershell -NoProfile -Command "$envFile = Join-Path (Get-Location) '.env'; $newKey = '%INPUT_KEY%'; $lines = @(); if (Test-Path $envFile) { $lines = Get-Content $envFile }; if (($lines | Select-String '^ANTHROPIC_API_KEY=' -Quiet)) { $lines = $lines | ForEach-Object { if ($_ -match '^ANTHROPIC_API_KEY=') { 'ANTHROPIC_API_KEY=' + $newKey } else { $_ } } } else { $lines += 'ANTHROPIC_API_KEY=' + $newKey }; Set-Content -Path $envFile -Value $lines -Encoding UTF8"
+if errorlevel 1 goto API_KEY_FAIL
+goto :EOF
+
+:NO_WINGET
 echo.
-echo  !! ACTION REQUIRED !!
-echo  Open .env and replace "sk-ant-your-key-here" with your Anthropic API key.
-echo  Get a key from: https://console.anthropic.com/
+echo [ERROR] winget is not available, so %TOOL_NAME% could not be auto-installed.
+echo Install required tools, then re-run start.bat:
+echo   Python 3.8+: https://www.python.org/downloads/
+echo   Node.js 18+: https://nodejs.org/
 echo.
-start notepad .env
 pause
-goto END
+exit /b 1
 
-:NO_PYTHON
-echo [ERROR] Python not found. Install Python 3.8+ from https://python.org
+:INSTALL_FAIL
+echo.
+echo [ERROR] Failed to auto-install %TOOL_NAME%.
+echo Please install it manually, then re-run start.bat.
+echo.
 pause
-goto END
+exit /b 1
 
-:NO_NODE
-echo [ERROR] Node.js not found. Install Node.js 18+ from https://nodejs.org
+:ENV_FAIL
+echo [ERROR] Failed to create .env file.
 pause
-goto END
+exit /b 1
+
+:API_KEY_FAIL
+echo.
+echo [ERROR] Could not save Anthropic API key.
+echo You can manually edit .env and set ANTHROPIC_API_KEY=your-key.
+echo.
+pause
+exit /b 1
 
 :VENV_FAIL
 echo [ERROR] Failed to create virtual environment.
@@ -115,3 +199,4 @@ pause
 goto END
 
 :END
+endlocal

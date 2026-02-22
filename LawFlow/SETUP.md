@@ -1,12 +1,23 @@
 # LawFlow Setup Guide
 
-## One-Click Start (Windows)
+## True One-Click Install (Windows, no Python/Node required)
 
-After completing the prerequisites below, just **double-click `start.bat`** — it will:
-- Create and configure the Python virtual environment automatically
-- Install all backend and frontend dependencies (first run only)
-- Prompt you to add your Anthropic API key if not set
-- Launch both servers and open your browser at http://localhost:5173
+To share LawFlow with a friend who has no dev tools installed:
+
+1. On your dev machine, build the installer:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\build_windows_installer.ps1
+   ```
+2. Send your friend `installer\output\LawFlowSetup.exe`.
+3. Your friend runs the installer and launches LawFlow from the Start Menu/Desktop.
+
+On first launch, LawFlow prompts for the Anthropic API key and then opens in the browser automatically.
+
+---
+
+## One-Click Dev Start (Windows)
+
+After completing the prerequisites below, you can still **double-click `start.bat`** for local development.
 
 ---
 

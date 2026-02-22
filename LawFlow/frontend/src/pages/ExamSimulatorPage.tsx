@@ -4,15 +4,21 @@ import {
   generateExam,
   submitAnswer,
   completeExam,
-  getExamResults,
   getExamHistory,
   type ExamAssessment,
   type ExamQuestion,
   type IracGrading,
 } from "@/api/exam";
 import { getMastery } from "@/api/progress";
-import { cleanMarkdown } from "@/lib/utils";
+import { useRewardToast } from "@/hooks/useRewardToast";
+import type { RewardsSummary } from "@/types";
+import { cleanMarkdown, scoreColor, scoreLabel } from "@/lib/utils";
+import { SUBJECTS_REQUIRED, EXAM_FORMATS } from "@/lib/constants";
 import ReactMarkdown from "react-markdown";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import MasteryBar from "@/components/ui/MasteryBar";
 import {
   FileQuestion,
   Clock,
@@ -31,24 +37,6 @@ import {
   Send,
   History,
 } from "lucide-react";
-
-const SUBJECTS = [
-  { value: "con_law", label: "Constitutional Law" },
-  { value: "contracts", label: "Contracts" },
-  { value: "torts", label: "Torts" },
-  { value: "crim_law", label: "Criminal Law" },
-  { value: "civ_pro", label: "Civil Procedure" },
-  { value: "property", label: "Property" },
-  { value: "evidence", label: "Evidence" },
-  { value: "prof_responsibility", label: "Prof. Responsibility" },
-];
-
-const FORMATS = [
-  { value: "mixed", label: "Mixed (Essay + MC)", desc: "Realistic exam simulation" },
-  { value: "essay", label: "Essay Only", desc: "IRAC-graded fact patterns" },
-  { value: "mc", label: "Multiple Choice", desc: "MBE-style questions" },
-  { value: "issue_spot", label: "Issue Spotting", desc: "Identify all legal issues" },
-];
 
 type Phase = "setup" | "exam" | "grading" | "results";
 
@@ -87,30 +75,11 @@ function useTimer(totalSeconds: number, onExpire: () => void) {
   return { display, pct, urgent, remaining, start, stop, running };
 }
 
-// ── Score Color ────────────────────────────────────────────────────────────
-
-function scoreColor(score: number): string {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#10b981";
-  if (score >= 40) return "#f59e0b";
-  if (score >= 20) return "#f97316";
-  return "#ef4444";
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 90) return "Excellent";
-  if (score >= 80) return "Strong";
-  if (score >= 70) return "Good";
-  if (score >= 60) return "Adequate";
-  if (score >= 50) return "Needs Work";
-  if (score >= 35) return "Weak";
-  return "Critical Gap";
-}
-
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function ExamSimulatorPage() {
   const queryClient = useQueryClient();
+  const fireRewardToast = useRewardToast();
   const [phase, setPhase] = useState<Phase>("setup");
   const [exam, setExam] = useState<ExamAssessment | null>(null);
   const [results, setResults] = useState<ExamAssessment | null>(null);
@@ -189,11 +158,15 @@ export default function ExamSimulatorPage() {
 
     // Complete the exam
     try {
+      // Snapshot rewards cache BEFORE the XP-awarding API call
+      const rewardsSnapshot = queryClient.getQueryData<RewardsSummary>(["rewards-summary"]);
       const finalResults = await completeExam(exam.id);
       setResults(finalResults);
       setPhase("results");
       queryClient.invalidateQueries({ queryKey: ["mastery"] });
       queryClient.invalidateQueries({ queryKey: ["exam-history"] });
+      // Fire reward toast with pre-captured snapshot
+      void fireRewardToast(rewardsSnapshot).catch(() => {});
     } catch (e) {
       console.error("Failed to complete exam:", e);
     }
@@ -212,28 +185,19 @@ export default function ExamSimulatorPage() {
   if (phase === "setup") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <FileQuestion size={24} style={{ color: "var(--accent-text)" }} />
-          <div>
-            <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-              Exam Simulator
-            </h2>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Timed practice exams weighted by your professor's patterns
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<FileQuestion size={24} />}
+          title="Exam Simulator"
+          subtitle="Timed practice exams weighted by your professor's patterns"
+        />
 
         {/* Subject selection */}
         <div>
-          <label
-            className="block text-sm font-semibold mb-2"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <label className="block text-sm font-semibold mb-2 text-ui-primary">
             Subject
           </label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {SUBJECTS.map((s) => {
+            {SUBJECTS_REQUIRED.map((s) => {
               const mastery = masteryData.find((m) => m.subject === s.value);
               return (
                 <button
@@ -254,10 +218,7 @@ export default function ExamSimulatorPage() {
                 >
                   <span className="text-sm font-medium">{s.label}</span>
                   {mastery && (
-                    <span
-                      className="block text-xs mt-0.5"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <span className="block text-xs mt-0.5 text-ui-muted">
                       {mastery.mastery_score.toFixed(0)}% mastery
                     </span>
                   )}
@@ -269,14 +230,11 @@ export default function ExamSimulatorPage() {
 
         {/* Format selection */}
         <div>
-          <label
-            className="block text-sm font-semibold mb-2"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <label className="block text-sm font-semibold mb-2 text-ui-primary">
             Exam Format
           </label>
           <div className="grid grid-cols-2 gap-2">
-            {FORMATS.map((f) => (
+            {EXAM_FORMATS.map((f) => (
               <button
                 key={f.value}
                 onClick={() => setFormat(f.value)}
@@ -300,10 +258,7 @@ export default function ExamSimulatorPage() {
                 >
                   {f.label}
                 </span>
-                <span
-                  className="block text-xs mt-0.5"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <span className="block text-xs mt-0.5 text-ui-muted">
                   {f.desc}
                 </span>
               </button>
@@ -314,10 +269,7 @@ export default function ExamSimulatorPage() {
         {/* Configuration */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label
-              className="block text-sm font-semibold mb-2"
-              style={{ color: "var(--text-primary)" }}
-            >
+            <label className="block text-sm font-semibold mb-2 text-ui-primary">
               Questions: {numQuestions}
             </label>
             <input
@@ -327,20 +279,15 @@ export default function ExamSimulatorPage() {
               value={numQuestions}
               onChange={(e) => setNumQuestions(Number(e.target.value))}
               className="w-full accent-indigo-500"
+              title="Number of questions"
             />
-            <div
-              className="flex justify-between text-xs mt-1"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <div className="flex justify-between text-xs mt-1 text-ui-muted">
               <span>1 (quick)</span>
               <span>15 (full exam)</span>
             </div>
           </div>
           <div>
-            <label
-              className="block text-sm font-semibold mb-2"
-              style={{ color: "var(--text-primary)" }}
-            >
+            <label className="block text-sm font-semibold mb-2 text-ui-primary">
               Time Limit: {timeMinutes} min
             </label>
             <input
@@ -351,11 +298,9 @@ export default function ExamSimulatorPage() {
               value={timeMinutes}
               onChange={(e) => setTimeMinutes(Number(e.target.value))}
               className="w-full accent-indigo-500"
+              title="Time limit in minutes"
             />
-            <div
-              className="flex justify-between text-xs mt-1"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <div className="flex justify-between text-xs mt-1 text-ui-muted">
               <span>10 min</span>
               <span>3 hours</span>
             </div>
@@ -366,8 +311,7 @@ export default function ExamSimulatorPage() {
         <button
           onClick={() => generateMutation.mutate()}
           disabled={!subject || generateMutation.isPending}
-          className="w-full py-4 rounded-xl text-white font-semibold text-lg transition-all disabled:opacity-40 flex items-center justify-center gap-3"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-3"
         >
           {generateMutation.isPending ? (
             <>
@@ -395,7 +339,7 @@ export default function ExamSimulatorPage() {
               <p className="text-sm font-medium text-red-400">
                 Failed to generate exam
               </p>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+              <p className="text-xs mt-1 text-ui-muted">
                 {(generateMutation.error as Error)?.message ||
                   "Make sure you have uploaded documents for this subject."}
               </p>
@@ -407,29 +351,19 @@ export default function ExamSimulatorPage() {
         {history.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <History size={16} style={{ color: "var(--text-muted)" }} />
-              <h3
-                className="text-sm font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <History size={16} className="text-ui-muted" />
+              <h3 className="text-sm font-semibold text-ui-primary">
                 Recent Exams
               </h3>
             </div>
             <div className="space-y-2">
               {history.map((h) => (
-                <div
-                  key={h.id}
-                  className="rounded-xl p-3 flex items-center justify-between"
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                  }}
-                >
+                <Card key={h.id} padding="sm" className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      {SUBJECTS.find((s) => s.value === h.subject)?.label || h.subject}
+                    <span className="text-sm font-medium text-ui-primary">
+                      {SUBJECTS_REQUIRED.find((s) => s.value === h.subject)?.label || h.subject}
                     </span>
-                    <span className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>
+                    <span className="text-xs ml-2 text-ui-muted">
                       {h.total_questions}Q · {h.assessment_type} ·{" "}
                       {h.completed_at
                         ? new Date(h.completed_at).toLocaleDateString()
@@ -444,7 +378,7 @@ export default function ExamSimulatorPage() {
                       {h.score.toFixed(0)}%
                     </span>
                   )}
-                </div>
+                </Card>
               ))}
             </div>
           </div>
@@ -464,12 +398,9 @@ export default function ExamSimulatorPage() {
         {/* Top bar: timer + progress */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <FileQuestion size={20} style={{ color: "var(--accent-text)" }} />
-            <span
-              className="text-sm font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {SUBJECTS.find((s) => s.value === exam.subject)?.label}
+            <FileQuestion size={20} className="text-accent-label" />
+            <span className="text-sm font-semibold text-ui-primary">
+              {SUBJECTS_REQUIRED.find((s) => s.value === exam.subject)?.label}
             </span>
           </div>
 
@@ -495,18 +426,15 @@ export default function ExamSimulatorPage() {
 
         {/* Progress bar */}
         <div>
-          <div className="flex justify-between text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+          <div className="flex justify-between text-xs mb-1 text-ui-muted">
             <span>
               Question {currentQ + 1} of {totalQuestions}
             </span>
             <span>{answeredCount} answered</span>
           </div>
-          <div
-            className="h-1.5 rounded-full overflow-hidden"
-            style={{ backgroundColor: "var(--bg-muted)" }}
-          >
+          <div className="progress-track">
             <div
-              className="h-full rounded-full transition-all"
+              className="progress-fill"
               style={{
                 width: `${((currentQ + 1) / totalQuestions) * 100}%`,
                 backgroundColor: "var(--accent)",
@@ -552,39 +480,18 @@ export default function ExamSimulatorPage() {
         </div>
 
         {/* Question card */}
-        <div
-          className="rounded-2xl p-6"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
+        <Card padding="lg" className="rounded-2xl">
           {/* Question metadata */}
           <div className="flex items-center gap-2 mb-4">
-            <span
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-              style={{
-                backgroundColor: "var(--accent-muted)",
-                color: "var(--accent-text)",
-              }}
-            >
+            <Badge variant="accent">
               {currentQuestion.question_type === "mc"
                 ? "Multiple Choice"
                 : currentQuestion.question_type === "essay"
                 ? "Essay"
                 : "Issue Spotting"}
-            </span>
+            </Badge>
             {currentQuestion.topic && (
-              <span
-                className="text-[10px] px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: "var(--bg-muted)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                {currentQuestion.topic}
-              </span>
+              <Badge variant="muted">{currentQuestion.topic}</Badge>
             )}
           </div>
 
@@ -651,29 +558,17 @@ export default function ExamSimulatorPage() {
                   : "List all legal issues you can identify..."
               }
               rows={12}
-              className="w-full rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2"
-              style={{
-                backgroundColor: "var(--bg-muted)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-                // @ts-expect-error css var
-                "--tw-ring-color": "var(--accent)",
-              }}
+              className="input-base w-full rounded-xl p-4 text-sm resize-none"
             />
           )}
-        </div>
+        </Card>
 
         {/* Navigation */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => setCurrentQ((i) => Math.max(0, i - 1))}
             disabled={currentQ === 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-30 transition-all"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--border)",
-            }}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-30"
           >
             <ChevronLeft size={16} /> Previous
           </button>
@@ -693,8 +588,7 @@ export default function ExamSimulatorPage() {
           ) : (
             <button
               onClick={handleSubmitExam}
-              className="flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-semibold text-white transition-all"
-              style={{ backgroundColor: "var(--accent)" }}
+              className="btn-primary flex items-center gap-2"
             >
               <Send size={16} /> Submit Exam
             </button>
@@ -711,31 +605,24 @@ export default function ExamSimulatorPage() {
         <div className="text-center">
           <Loader2
             size={48}
-            className="mx-auto animate-spin mb-6"
-            style={{ color: "var(--accent-text)" }}
+            className="mx-auto animate-spin mb-6 text-accent-label"
           />
-          <h2
-            className="text-xl font-bold mb-2"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <h2 className="text-xl font-bold mb-2 text-ui-primary">
             Grading Your Exam...
           </h2>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mb-4 text-ui-muted">
             AI is evaluating your answers with IRAC rubric analysis
           </p>
-          <div
-            className="w-64 h-2 rounded-full mx-auto overflow-hidden"
-            style={{ backgroundColor: "var(--bg-muted)" }}
-          >
+          <div className="progress-track w-64 mx-auto">
             <div
-              className="h-full rounded-full transition-all"
+              className="progress-fill"
               style={{
                 width: `${gradingProgress}%`,
                 backgroundColor: "var(--accent)",
               }}
             />
           </div>
-          <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-2 text-ui-muted">
             {gradingProgress}% complete
           </p>
         </div>
@@ -764,13 +651,10 @@ export default function ExamSimulatorPage() {
           >
             {score.toFixed(0)}
           </p>
-          <p
-            className="text-lg font-medium mt-1"
-            style={{ color: "var(--text-primary)" }}
-          >
+          <p className="text-lg font-medium mt-1 text-ui-primary">
             {scoreLabel(score)}
           </p>
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mt-1 text-ui-muted">
             {results.total_questions} questions ·{" "}
             {results.time_taken_minutes?.toFixed(0) ?? "?"} min ·{" "}
             {results.assessment_type}
@@ -779,18 +663,9 @@ export default function ExamSimulatorPage() {
 
         {/* IRAC breakdown (for essays) */}
         {irac && Object.values(irac).some((v) => v !== null) && (
-          <div
-            className="rounded-2xl p-5"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <h3
-              className="text-sm font-semibold mb-4 flex items-center gap-2"
-              style={{ color: "var(--text-primary)" }}
-            >
-              <Target size={16} style={{ color: "var(--accent-text)" }} />
+          <Card padding="lg">
+            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-ui-primary">
+              <Target size={16} className="text-accent-label" />
               IRAC Component Breakdown
             </h3>
             <div className="space-y-3">
@@ -813,14 +688,9 @@ export default function ExamSimulatorPage() {
                 return (
                   <div key={key}>
                     <div className="flex items-center justify-between mb-1">
-                      <span
-                        className="text-xs font-medium"
-                        style={{ color: "var(--text-primary)" }}
-                      >
+                      <span className="text-xs font-medium text-ui-primary">
                         {label}{" "}
-                        <span style={{ color: "var(--text-muted)" }}>
-                          ({weight})
-                        </span>
+                        <span className="text-ui-muted">({weight})</span>
                       </span>
                       <span
                         className="text-sm font-bold"
@@ -829,39 +699,19 @@ export default function ExamSimulatorPage() {
                         {val.toFixed(0)}
                       </span>
                     </div>
-                    <div
-                      className="h-2 rounded-full overflow-hidden"
-                      style={{ backgroundColor: "var(--bg-muted)" }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${val}%`,
-                          backgroundColor: scoreColor(val),
-                        }}
-                      />
-                    </div>
+                    <MasteryBar score={val} size="sm" />
                   </div>
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Topic breakdown */}
         {Object.keys(topicBreakdown).length > 0 && (
-          <div
-            className="rounded-2xl p-5"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <h3
-              className="text-sm font-semibold mb-4 flex items-center gap-2"
-              style={{ color: "var(--text-primary)" }}
-            >
-              <BarChart2 size={16} style={{ color: "var(--accent-text)" }} />
+          <Card padding="lg">
+            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2 text-ui-primary">
+              <BarChart2 size={16} className="text-accent-label" />
               Topic Performance
             </h3>
             <div className="space-y-2">
@@ -869,23 +719,11 @@ export default function ExamSimulatorPage() {
                 .sort(([, a], [, b]) => a - b)
                 .map(([topic, topicScore]) => (
                   <div key={topic} className="flex items-center gap-3">
-                    <span
-                      className="text-xs w-32 truncate"
-                      style={{ color: "var(--text-secondary)" }}
-                    >
+                    <span className="text-xs w-32 truncate text-ui-secondary">
                       {topic}
                     </span>
-                    <div
-                      className="flex-1 h-2 rounded-full overflow-hidden"
-                      style={{ backgroundColor: "var(--bg-muted)" }}
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${topicScore}%`,
-                          backgroundColor: scoreColor(topicScore),
-                        }}
-                      />
+                    <div className="flex-1">
+                      <MasteryBar score={topicScore} size="sm" />
                     </div>
                     <span
                       className="text-xs font-bold w-10 text-right"
@@ -896,16 +734,13 @@ export default function ExamSimulatorPage() {
                   </div>
                 ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* Per-question feedback */}
         <div>
-          <h3
-            className="text-sm font-semibold mb-3 flex items-center gap-2"
-            style={{ color: "var(--text-primary)" }}
-          >
-            <BookOpen size={16} style={{ color: "var(--accent-text)" }} />
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-ui-primary">
+            <BookOpen size={16} className="text-accent-label" />
             Question-by-Question Review
           </h3>
           <div className="space-y-3">
@@ -919,12 +754,7 @@ export default function ExamSimulatorPage() {
         <div className="flex gap-3">
           <button
             onClick={resetExam}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--border)",
-            }}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2 py-3"
           >
             <RotateCcw size={16} />
             New Exam
@@ -932,11 +762,9 @@ export default function ExamSimulatorPage() {
           <button
             onClick={() => {
               resetExam();
-              // Pre-select the same subject
               setSubject(results.subject);
             }}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition-all"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="btn-primary flex-1 flex items-center justify-center gap-2 py-3"
           >
             <Zap size={16} />
             Retake Same Subject
@@ -972,18 +800,11 @@ function QuestionReview({
   }
 
   return (
-    <div
-      className="rounded-xl overflow-hidden transition-all"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
-    >
+    <Card padding="none" className="overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full text-left p-4 flex items-center gap-3 transition-colors"
-        style={{ color: "var(--text-primary)" }}
+        className="w-full text-left p-4 flex items-center gap-3 transition-colors text-ui-primary"
       >
         {qScore >= 60 ? (
           <CheckCircle size={18} className="text-emerald-400 shrink-0" />
@@ -1001,10 +822,9 @@ function QuestionReview({
         </span>
         <ChevronRight
           size={16}
-          className={`shrink-0 transition-transform ${
+          className={`shrink-0 transition-transform text-ui-muted ${
             expanded ? "rotate-90" : ""
           }`}
-          style={{ color: "var(--text-muted)" }}
         />
       </button>
 
@@ -1012,10 +832,7 @@ function QuestionReview({
       {expanded && (
         <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid var(--border)" }}>
           <div className="pt-3">
-            <p
-              className="text-xs font-semibold uppercase mb-1"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <p className="text-xs font-semibold uppercase mb-1 text-ui-muted">
               Your Answer
             </p>
             <div
@@ -1026,9 +843,7 @@ function QuestionReview({
               }}
             >
               {question.student_answer || (
-                <span style={{ color: "var(--text-muted)" }}>
-                  (No answer provided)
-                </span>
+                <span className="text-ui-muted">(No answer provided)</span>
               )}
             </div>
           </div>
@@ -1042,7 +857,7 @@ function QuestionReview({
                     size={14}
                     className="text-emerald-400 shrink-0 mt-0.5"
                   />
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-xs text-ui-secondary">
                     <strong>Strengths:</strong> {grading.strengths}
                   </p>
                 </div>
@@ -1053,7 +868,7 @@ function QuestionReview({
                     size={14}
                     className="text-amber-400 shrink-0 mt-0.5"
                   />
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-xs text-ui-secondary">
                     <strong>Needs work:</strong> {grading.weaknesses}
                   </p>
                 </div>
@@ -1064,7 +879,7 @@ function QuestionReview({
                     size={14}
                     className="text-red-400 shrink-0 mt-0.5"
                   />
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-xs text-ui-secondary">
                     <strong>Issues missed:</strong>{" "}
                     {grading.issues_missed.join(", ")}
                   </p>
@@ -1076,10 +891,7 @@ function QuestionReview({
           {/* Textual feedback */}
           {grading?.feedback ? (
             <div>
-              <p
-                className="text-xs font-semibold uppercase mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <p className="text-xs font-semibold uppercase mb-1 text-ui-muted">
                 Feedback
               </p>
               <div className="prose-tutor text-xs">
@@ -1090,10 +902,7 @@ function QuestionReview({
             </div>
           ) : question.feedback && !grading ? (
             <div>
-              <p
-                className="text-xs font-semibold uppercase mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
+              <p className="text-xs font-semibold uppercase mb-1 text-ui-muted">
                 Feedback
               </p>
               <div className="prose-tutor text-xs">
@@ -1105,6 +914,6 @@ function QuestionReview({
           ) : null}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

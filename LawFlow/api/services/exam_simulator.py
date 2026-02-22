@@ -546,6 +546,19 @@ def complete_exam(assessment_id: str) -> dict:
         result["questions"] = [q.to_dict() for q in questions]
         result["topic_breakdown"] = topic_breakdown
 
+        # Award points for exam completion
+        try:
+            from api.services.rewards_engine import award_points
+            reward = award_points(
+                "exam_complete", assessment_id,
+                f"Completed {assessment.subject} exam ({assessment.score:.0f}%)",
+                base_amount=50 + int(assessment.score / 2),
+                metadata={"subject": assessment.subject, "score": assessment.score},
+            )
+            result["points_awarded"] = reward
+        except Exception:
+            pass  # Don't break exam flow if rewards fail
+
     return result
 
 

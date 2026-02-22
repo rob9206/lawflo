@@ -1,13 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDueCards,
   getCardStats,
   answerCard,
   generateCardsForSubject,
+  completeFlashcardSession,
   type FlashCard,
 } from "@/api/review";
 import { getMastery } from "@/api/progress";
+import { useRewardToast } from "@/hooks/useRewardToast";
+import type { RewardsSummary } from "@/types";
 import {
   CreditCard,
   Zap,
@@ -19,41 +22,24 @@ import {
   Star,
   BookOpen,
 } from "lucide-react";
-
-const SUBJECTS = [
-  { value: "", label: "All Subjects" },
-  { value: "con_law", label: "Constitutional Law" },
-  { value: "contracts", label: "Contracts" },
-  { value: "torts", label: "Torts" },
-  { value: "crim_law", label: "Criminal Law" },
-  { value: "civ_pro", label: "Civil Procedure" },
-  { value: "property", label: "Property" },
-  { value: "evidence", label: "Evidence" },
-  { value: "prof_responsibility", label: "Prof. Responsibility" },
-];
-
-const CARD_TYPE_LABELS: Record<string, string> = {
-  concept: "Concept",
-  rule: "Rule",
-  case_holding: "Case Holding",
-  element_list: "Elements",
-};
-
-const QUALITY_BUTTONS = [
-  { label: "Again", quality: 1, color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
-  { label: "Hard", quality: 2, color: "#f97316", bg: "rgba(249,115,22,0.15)" },
-  { label: "Good", quality: 4, color: "#10b981", bg: "rgba(16,185,129,0.15)" },
-  { label: "Easy", quality: 5, color: "#6366f1", bg: "rgba(99,102,241,0.15)" },
-];
+import { SUBJECTS_FULL, CARD_TYPE_LABELS, QUALITY_BUTTONS } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import StatCard from "@/components/ui/StatCard";
+import PageHeader from "@/components/ui/PageHeader";
+import Badge from "@/components/ui/Badge";
+import EmptyState from "@/components/ui/EmptyState";
+import SubjectFilter from "@/components/ui/SubjectFilter";
 
 export default function FlashcardPage() {
   const queryClient = useQueryClient();
+  const fireRewardToast = useRewardToast();
   const [selectedSubject, setSelectedSubject] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
   const [sessionDone, setSessionDone] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const qualitySum = useRef(0);
 
   const { data: stats } = useQuery({
     queryKey: ["card-stats", selectedSubject],
@@ -74,13 +60,21 @@ export default function FlashcardPage() {
   const answerMutation = useMutation({
     mutationFn: ({ cardId, quality }: { cardId: string; quality: number }) =>
       answerCard(cardId, quality),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      qualitySum.current += variables.quality;
       const next = currentIndex + 1;
-      setReviewedCount((c) => c + 1);
+      const newCount = reviewedCount + 1;
+      setReviewedCount(newCount);
       setIsFlipped(false);
 
       if (next >= dueCards.length) {
         setSessionDone(true);
+        // Snapshot rewards cache BEFORE the XP-awarding API call
+        const rewardsSnapshot = queryClient.getQueryData<RewardsSummary>(["rewards-summary"]);
+        const avgQuality = qualitySum.current / newCount;
+        void completeFlashcardSession(newCount, avgQuality)
+          .then(() => fireRewardToast(rewardsSnapshot))
+          .catch(() => {});
       } else {
         setCurrentIndex(next);
       }
@@ -99,6 +93,7 @@ export default function FlashcardPage() {
       setSessionDone(false);
       setIsFlipped(false);
       setReviewedCount(0);
+      qualitySum.current = 0;
       queryClient.invalidateQueries({ queryKey: ["card-stats"] });
     } finally {
       setGenerating(false);
@@ -110,86 +105,63 @@ export default function FlashcardPage() {
     setIsFlipped(false);
     setReviewedCount(0);
     setSessionDone(false);
+    qualitySum.current = 0;
     await refetchCards();
   }, [refetchCards]);
 
+  const handleSubjectSelect = useCallback((value: string) => {
+    setSelectedSubject(value);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setSessionDone(false);
+    setReviewedCount(0);
+    qualitySum.current = 0;
+  }, []);
+
   const currentCard: FlashCard | undefined = dueCards[currentIndex];
+
+  const generateButton = selectedSubject ? (
+    <button
+      onClick={handleGenerate}
+      disabled={generating}
+      className="btn-primary flex items-center gap-2"
+    >
+      {generating ? (
+        <Loader2 size={16} className="animate-spin" />
+      ) : (
+        <Sparkles size={16} />
+      )}
+      {generating ? "Generating…" : "Generate Cards"}
+    </button>
+  ) : undefined;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Flashcards
-          </h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Spaced repetition review — SM-2 algorithm
-          </p>
-        </div>
-
-        {/* Generate button */}
-        {selectedSubject && (
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-            style={{ backgroundColor: "var(--accent)" }}
-          >
-            {generating ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Sparkles size={16} />
-            )}
-            {generating ? "Generating…" : "Generate Cards"}
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Flashcards"
+        subtitle="Spaced repetition review — SM-2 algorithm"
+        action={generateButton}
+      />
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MiniStat icon={<CreditCard size={16} />} label="Total Cards" value={String(stats?.total ?? 0)} color="text-indigo-400" />
-        <MiniStat icon={<Zap size={16} />} label="Due Today" value={String(stats?.due ?? 0)} color="text-amber-400" />
-        <MiniStat icon={<Brain size={16} />} label="Learning" value={String(stats?.learning ?? 0)} color="text-blue-400" />
-        <MiniStat icon={<Star size={16} />} label="Mature" value={String(stats?.mature ?? 0)} color="text-emerald-400" />
+        <StatCard icon={<CreditCard size={16} />} label="Total Cards" value={String(stats?.total ?? 0)} color="text-indigo-400" />
+        <StatCard icon={<Zap size={16} />} label="Due Today" value={String(stats?.due ?? 0)} color="text-amber-400" />
+        <StatCard icon={<Brain size={16} />} label="Learning" value={String(stats?.learning ?? 0)} color="text-blue-400" />
+        <StatCard icon={<Star size={16} />} label="Mature" value={String(stats?.mature ?? 0)} color="text-emerald-400" />
       </div>
 
-      {/* Subject filter */}
-      <div className="flex flex-wrap gap-2">
-        {SUBJECTS.map((s) => {
-          const mastery = masteryData.find((m) => m.subject === s.value);
-          return (
-            <button
-              key={s.value}
-              onClick={() => {
-                setSelectedSubject(s.value);
-                setCurrentIndex(0);
-                setIsFlipped(false);
-                setSessionDone(false);
-                setReviewedCount(0);
-              }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-              style={{
-                backgroundColor:
-                  selectedSubject === s.value ? "var(--accent-muted)" : "var(--bg-card)",
-                color:
-                  selectedSubject === s.value ? "var(--accent-text)" : "var(--text-secondary)",
-                border: `1px solid ${selectedSubject === s.value ? "var(--accent)" : "var(--border)"}`,
-              }}
-            >
-              {s.label}
-              {mastery && (
-                <span className="ml-1.5 opacity-60">{mastery.mastery_score.toFixed(0)}%</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <SubjectFilter
+        subjects={SUBJECTS_FULL}
+        selected={selectedSubject}
+        onSelect={handleSubjectSelect}
+        masteryData={masteryData}
+      />
 
       {/* Card area */}
       {cardsLoading ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 size={24} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+          <Loader2 size={24} className="animate-spin text-ui-muted" />
         </div>
       ) : sessionDone ? (
         <SessionComplete
@@ -200,25 +172,38 @@ export default function FlashcardPage() {
         />
       ) : dueCards.length === 0 ? (
         <EmptyState
-          hasSubject={!!selectedSubject}
-          onGenerate={selectedSubject ? handleGenerate : undefined}
-          generating={generating}
+          icon={<BookOpen size={40} />}
+          message="No cards due for review"
+          sub={
+            selectedSubject
+              ? "Great work! Generate more cards from your knowledge base."
+              : "Select a subject and generate cards from your uploaded documents."
+          }
+          action={
+            selectedSubject ? (
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="btn-primary flex items-center gap-2 mx-auto"
+              >
+                {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                {generating ? "Generating…" : "Generate Flashcards"}
+              </button>
+            ) : undefined
+          }
         />
       ) : (
         currentCard && (
           <div className="space-y-4">
             {/* Progress */}
-            <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+            <div className="flex items-center justify-between text-xs text-ui-muted">
               <span>{currentIndex + 1} / {dueCards.length} cards</span>
               <span>{reviewedCount} reviewed this session</span>
             </div>
-            <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-muted)" }}>
+            <div className="progress-track h-1">
               <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${((currentIndex) / dueCards.length) * 100}%`,
-                  backgroundColor: "var(--accent)",
-                }}
+                className="progress-fill h-full"
+                style={{ width: `${((currentIndex) / dueCards.length) * 100}%` }}
               />
             </div>
 
@@ -230,77 +215,36 @@ export default function FlashcardPage() {
             >
               <div className={`flip-card-inner ${isFlipped ? "flipped" : ""}`}>
                 {/* Front */}
-                <div
-                  className="flip-card-front rounded-2xl flex flex-col p-8 cursor-pointer select-none"
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    boxShadow: "var(--shadow-card)",
-                  }}
-                >
+                <Card padding="none" className="flip-card-front rounded-2xl flex flex-col p-8 cursor-pointer select-none">
                   <div className="flex items-center gap-2 mb-4">
-                    <span
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: "var(--accent-muted)", color: "var(--accent-text)" }}
-                    >
-                      {currentCard.subject}
-                    </span>
+                    <Badge variant="accent">{currentCard.subject}</Badge>
                     {currentCard.topic && (
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
-                      >
-                        {currentCard.topic}
-                      </span>
+                      <Badge variant="muted">{currentCard.topic}</Badge>
                     )}
-                    <span
-                      className="text-[10px] px-2 py-0.5 rounded-full ml-auto"
-                      style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
-                    >
+                    <Badge variant="muted" className="ml-auto">
                       {CARD_TYPE_LABELS[currentCard.card_type] ?? currentCard.card_type}
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="flex-1 flex items-center justify-center">
-                    <p
-                      className="text-center text-lg font-medium leading-relaxed"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+                    <p className="text-center text-lg font-medium leading-relaxed text-ui-primary">
                       {currentCard.front}
                     </p>
                   </div>
 
-                  <p
-                    className="text-center text-xs mt-4"
-                    style={{ color: "var(--text-muted)" }}
-                  >
+                  <p className="text-center text-xs mt-4 text-ui-muted">
                     Tap to reveal answer
                   </p>
-                </div>
+                </Card>
 
                 {/* Back */}
-                <div
-                  className="flip-card-back rounded-2xl flex flex-col p-8"
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    boxShadow: "var(--shadow-card)",
-                  }}
-                >
+                <Card padding="none" className="flip-card-back rounded-2xl flex flex-col p-8">
                   <div className="flex items-center gap-2 mb-4">
-                    <span
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#4ade80" }}
-                    >
-                      Answer
-                    </span>
+                    <Badge variant="success">Answer</Badge>
                   </div>
 
                   <div className="flex-1 overflow-auto">
-                    <p
-                      className="text-sm leading-relaxed whitespace-pre-wrap"
-                      style={{ color: "var(--text-primary)" }}
-                    >
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-ui-primary">
                       {currentCard.back}
                     </p>
                   </div>
@@ -322,99 +266,20 @@ export default function FlashcardPage() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </Card>
               </div>
             </div>
 
             {!isFlipped && (
               <button
                 onClick={() => setIsFlipped(true)}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{
-                  backgroundColor: "var(--accent-muted)",
-                  color: "var(--accent-text)",
-                  border: "1px solid var(--accent)",
-                }}
+                className="btn-secondary w-full"
               >
                 Show Answer
               </button>
             )}
           </div>
         )
-      )}
-    </div>
-  );
-}
-
-function MiniStat({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="rounded-xl p-4"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className={color}>{icon}</span>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {label}
-        </span>
-      </div>
-      <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function EmptyState({
-  hasSubject,
-  onGenerate,
-  generating,
-}: {
-  hasSubject: boolean;
-  onGenerate?: () => void;
-  generating: boolean;
-}) {
-  return (
-    <div
-      className="rounded-2xl p-12 text-center"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <BookOpen size={40} className="mx-auto mb-4" style={{ color: "var(--text-muted)" }} />
-      <p className="font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
-        No cards due for review
-      </p>
-      <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-        {hasSubject
-          ? "Great work! Generate more cards from your knowledge base."
-          : "Select a subject and generate cards from your uploaded documents."}
-      </p>
-      {onGenerate && (
-        <button
-          onClick={onGenerate}
-          disabled={generating}
-          className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: "var(--accent)" }}
-        >
-          {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {generating ? "Generating…" : "Generate Flashcards"}
-        </button>
       )}
     </div>
   );
@@ -432,30 +297,16 @@ function SessionComplete({
   generating: boolean;
 }) {
   return (
-    <div
-      className="rounded-2xl p-12 text-center"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
-    >
+    <Card padding="none" className="p-12 text-center">
       <CheckCircle size={48} className="mx-auto mb-4 text-emerald-400" />
-      <h3 className="text-xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+      <h3 className="text-xl font-bold mb-1 text-ui-primary">
         Session Complete!
       </h3>
-      <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
+      <p className="text-sm mb-6 text-ui-muted">
         You reviewed {reviewedCount} card{reviewedCount !== 1 ? "s" : ""} this session.
       </p>
       <div className="flex items-center justify-center gap-3">
-        <button
-          onClick={onReset}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
-          style={{
-            backgroundColor: "var(--bg-muted)",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <button onClick={onReset} className="btn-secondary flex items-center gap-2">
           <RotateCcw size={16} />
           Review Again
         </button>
@@ -463,14 +314,13 @@ function SessionComplete({
           <button
             onClick={onGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="btn-primary flex items-center gap-2"
           >
             {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             More Cards
           </button>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

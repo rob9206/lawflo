@@ -2,13 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { getDashboard, getWeaknesses } from "@/api/progress";
 import { getRecentSessions } from "@/api/tutor";
-import { masteryColor } from "@/lib/utils";
+import { getRewardsSummary } from "@/api/rewards";
+import { masteryColor, masteryLabel, priorityLevel } from "@/lib/utils";
+import { SUBJECT_LABELS, MODE_LABELS } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import StatCard from "@/components/ui/StatCard";
+import PageHeader from "@/components/ui/PageHeader";
+import Badge from "@/components/ui/Badge";
+import EmptyState from "@/components/ui/EmptyState";
+import MasteryBar from "@/components/ui/MasteryBar";
 import {
   Brain,
   Clock,
   Layers,
   BookOpen,
-  AlertTriangle,
   Zap,
   GraduationCap,
   Upload,
@@ -16,41 +23,16 @@ import {
   ChevronRight,
   Target,
   Activity,
+  Trophy,
+  Flame,
+  Star,
 } from "lucide-react";
 
-const SUBJECT_LABELS: Record<string, string> = {
-  con_law: "Constitutional Law",
-  contracts: "Contracts",
-  torts: "Torts",
-  crim_law: "Criminal Law",
-  civ_pro: "Civil Procedure",
-  property: "Property",
-  evidence: "Evidence",
-  prof_responsibility: "Professional Responsibility",
-};
-
-const MODE_LABELS: Record<string, string> = {
-  explain: "Explain",
-  socratic: "Socratic",
-  hypo: "Hypo Drill",
-  issue_spot: "Issue Spot",
-  irac: "IRAC",
-  exam_strategy: "Exam Strategy",
-};
-
-function masteryLabel(score: number) {
-  if (score >= 80) return "Mastered";
-  if (score >= 60) return "Advanced";
-  if (score >= 40) return "Proficient";
-  if (score >= 20) return "Developing";
-  return "Beginning";
-}
-
-function priorityLevel(score: number): "high" | "medium" | "low" {
-  if (score < 30) return "high";
-  if (score < 55) return "medium";
-  return "low";
-}
+const PRIORITY_BADGE = {
+  high: "danger",
+  medium: "warning",
+  low: "success",
+} as const;
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -70,13 +52,19 @@ export default function DashboardPage() {
     queryFn: () => getRecentSessions(5),
   });
 
+  const { data: rewardsSummary } = useQuery({
+    queryKey: ["rewards-summary"],
+    queryFn: getRewardsSummary,
+    staleTime: 60_000,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-8 rounded-lg w-64" style={{ backgroundColor: "var(--bg-muted)" }} />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="h-8 rounded-lg w-64 bg-muted-ui" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl" style={{ backgroundColor: "var(--bg-card)" }} />
+            <div key={i} className="h-24 rounded-xl card" />
           ))}
         </div>
       </div>
@@ -91,26 +79,23 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* ── Welcome header ─────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Welcome back, Law Student
-          </h2>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            {subjects.length > 0
-              ? `You're studying ${subjects.length} subject${subjects.length !== 1 ? "s" : ""}. Keep pushing!`
-              : "Upload your first document to get started."}
-          </p>
-        </div>
-        <button
-          onClick={() => navigate("/auto-teach")}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-          style={{ backgroundColor: "var(--accent)" }}
-        >
-          <Zap size={16} />
-          Start Study Session
-        </button>
-      </div>
+      <PageHeader
+        title="Welcome back, Law Student"
+        subtitle={
+          subjects.length > 0
+            ? `You're studying ${subjects.length} subject${subjects.length !== 1 ? "s" : ""}. Keep pushing!`
+            : "Upload your first document to get started."
+        }
+        action={
+          <button
+            onClick={() => navigate("/auto-teach")}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Zap size={16} />
+            Start Study Session
+          </button>
+        }
+      />
 
       {/* ── Stats row ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -151,79 +136,41 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              <h3 className="text-base font-semibold text-ui-primary">
                 Today's Study Plan
               </h3>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <p className="text-xs text-ui-muted">
                 Prioritized topics based on your knowledge gaps
               </p>
             </div>
           </div>
 
           {weakTopics.length === 0 ? (
-            <div
-              className="rounded-xl p-8 text-center"
-              style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
-            >
-              <Layers size={32} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
-              <p style={{ color: "var(--text-secondary)" }}>No study data yet.</p>
-              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                Upload documents and start a tutoring session to build your plan.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Layers size={32} />}
+              message="No study data yet."
+              sub="Upload documents and start a tutoring session to build your plan."
+            />
           ) : (
             <div className="space-y-2">
               {weakTopics.map((topic) => {
                 const priority = priorityLevel(topic.mastery_score);
                 return (
-                  <div
-                    key={topic.id}
-                    className="rounded-xl p-4 transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-card)",
-                      border: "1px solid var(--border)",
-                      boxShadow: "var(--shadow-card)",
-                    }}
-                  >
+                  <Card key={topic.id} hover>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span
-                            className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                            style={{
-                              backgroundColor:
-                                priority === "high"
-                                  ? "rgba(239,68,68,0.15)"
-                                  : priority === "medium"
-                                  ? "rgba(245,158,11,0.15)"
-                                  : "rgba(34,197,94,0.15)",
-                              color:
-                                priority === "high"
-                                  ? "#f87171"
-                                  : priority === "medium"
-                                  ? "#fbbf24"
-                                  : "#4ade80",
-                            }}
-                          >
+                          <Badge variant={PRIORITY_BADGE[priority]}>
                             {priority}
-                          </span>
-                          <span
-                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                            style={{
-                              backgroundColor: "var(--accent-muted)",
-                              color: "var(--accent-text)",
-                            }}
-                          >
+                          </Badge>
+                          <Badge variant="accent">
                             {SUBJECT_LABELS[topic.subject] ?? topic.subject}
-                          </span>
+                          </Badge>
                         </div>
-                        <p
-                          className="font-semibold text-sm truncate"
-                          style={{ color: "var(--text-primary)" }}
-                        >
+                        <p className="font-semibold text-sm truncate text-ui-primary">
                           {topic.display_name}
                         </p>
-                        <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-ui-muted">
                           <span className={masteryColor(topic.mastery_score)}>
                             Current: {topic.mastery_score.toFixed(0)}%
                           </span>
@@ -237,13 +184,12 @@ export default function DashboardPage() {
                             `/auto-teach?subject=${topic.subject}&topic=${topic.topic}`
                           )
                         }
-                        className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-all"
-                        style={{ backgroundColor: "var(--accent)" }}
+                        className="btn-primary shrink-0 text-xs"
                       >
                         Start
                       </button>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -253,32 +199,60 @@ export default function DashboardPage() {
         {/* Right column */}
         <div className="space-y-4">
 
+          {/* Rewards widget */}
+          {rewardsSummary && (
+            <Card
+              hover
+              className="cursor-pointer"
+              onClick={() => navigate("/rewards")}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Trophy size={16} className="text-amber-400" />
+                  <h3 className="text-sm font-semibold text-ui-primary">
+                    Lv.{rewardsSummary.level}{" "}
+                    <span className="font-normal text-accent-label">
+                      {rewardsSummary.active_title}
+                    </span>
+                  </h3>
+                </div>
+                <ChevronRight size={14} className="text-ui-muted" />
+              </div>
+              <MasteryBar
+                score={Math.round(rewardsSummary.level_progress * 100)}
+                size="sm"
+              />
+              <div className="flex items-center gap-4 mt-2 text-xs text-ui-muted">
+                <span className="flex items-center gap-1">
+                  <Star size={12} className="text-indigo-400" />
+                  {rewardsSummary.balance.toLocaleString()} XP
+                </span>
+                <span className="flex items-center gap-1">
+                  <Flame size={12} className="text-orange-400" />
+                  {rewardsSummary.current_streak}d streak
+                </span>
+              </div>
+            </Card>
+          )}
+
           {/* Subject Overview */}
-          <div
-            className="rounded-xl p-4"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
+          <Card>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <h3 className="text-sm font-semibold text-ui-primary">
                 Subject Overview
               </h3>
               <button
                 onClick={() => navigate("/subjects")}
-                className="text-xs transition-colors"
-                style={{ color: "var(--accent-text)" }}
+                className="text-xs text-accent-label transition-colors"
               >
                 View All
               </button>
             </div>
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs mb-3 text-ui-muted">
               Your progress across all subjects
             </p>
             {subjects.length === 0 ? (
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>No subjects yet.</p>
+              <p className="text-xs text-ui-muted">No subjects yet.</p>
             ) : (
               <div className="space-y-3">
                 {subjects.slice(0, 5).map((s) => {
@@ -292,38 +266,15 @@ export default function DashboardPage() {
                       className="w-full text-left group"
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span
-                          className="text-xs font-medium group-hover:underline"
-                          style={{ color: "var(--text-primary)" }}
-                        >
+                        <span className="text-xs font-medium text-ui-primary group-hover:underline">
                           {s.display_name}
                         </span>
                         <span className={`text-xs font-bold ${masteryColor(s.mastery_score)}`}>
                           {s.mastery_score.toFixed(0)}%
                         </span>
                       </div>
-                      <div
-                        className="h-1.5 rounded-full overflow-hidden mb-0.5"
-                        style={{ backgroundColor: "var(--bg-muted)" }}
-                      >
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${s.mastery_score}%`,
-                            backgroundColor:
-                              s.mastery_score >= 80
-                                ? "#22c55e"
-                                : s.mastery_score >= 60
-                                ? "#10b981"
-                                : s.mastery_score >= 40
-                                ? "#f59e0b"
-                                : s.mastery_score >= 20
-                                ? "#f97316"
-                                : "#ef4444",
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <MasteryBar score={s.mastery_score} size="sm" />
+                      <p className="text-[10px] mt-0.5 text-ui-muted">
                         {masteredCount}/{totalTopics} topics mastered
                       </p>
                     </button>
@@ -331,25 +282,18 @@ export default function DashboardPage() {
                 })}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Recent Sessions */}
-          <div
-            className="rounded-xl p-4"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
+          <Card>
             <div className="flex items-center gap-2 mb-3">
-              <Activity size={14} style={{ color: "var(--text-muted)" }} />
-              <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              <Activity size={14} className="text-ui-muted" />
+              <h3 className="text-sm font-semibold text-ui-primary">
                 Recent Sessions
               </h3>
             </div>
             {recentSessions.length === 0 ? (
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <p className="text-xs text-ui-muted">
                 No sessions yet.
               </p>
             ) : (
@@ -358,45 +302,29 @@ export default function DashboardPage() {
                   <button
                     key={session.id}
                     onClick={() => navigate(`/tutor/${session.id}`)}
-                    className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors"
-                    style={{ backgroundColor: "var(--bg-surface)" }}
+                    className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors bg-surface"
                   >
                     <div>
-                      <p className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                      <p className="text-xs font-medium text-ui-primary">
                         {MODE_LABELS[session.tutor_mode ?? ""] ?? "Study session"}{" "}
                         {session.subject ? `· ${SUBJECT_LABELS[session.subject] ?? session.subject}` : ""}
                       </p>
-                      <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <p className="text-[10px] text-ui-muted">
                         {SUBJECT_LABELS[session.subject ?? ""] ?? (session.subject || "General")}
                       </p>
                     </div>
-                    <span
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        backgroundColor: session.ended_at
-                          ? "rgba(34,197,94,0.15)"
-                          : "rgba(59,130,246,0.15)",
-                        color: session.ended_at ? "#4ade80" : "#60a5fa",
-                      }}
-                    >
+                    <Badge variant={session.ended_at ? "success" : "accent"}>
                       {session.ended_at ? "done" : "active"}
-                    </span>
+                    </Badge>
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Quick Actions */}
-          <div
-            className="rounded-xl p-4"
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
-            <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
+          <Card>
+            <h3 className="text-sm font-semibold mb-3 text-ui-primary">
               Quick Actions
             </h3>
             <div className="space-y-1">
@@ -408,60 +336,18 @@ export default function DashboardPage() {
                 <button
                   key={to}
                   onClick={() => navigate(to)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors"
-                  style={{
-                    backgroundColor: "var(--bg-surface)",
-                    color: "var(--text-secondary)",
-                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left text-ui-secondary transition-colors bg-surface"
                 >
-                  <Icon size={15} style={{ color: "var(--text-muted)" }} />
+                  <Icon size={15} className="text-ui-muted" />
                   {label}
-                  <ChevronRight size={14} className="ml-auto" style={{ color: "var(--text-muted)" }} />
+                  <ChevronRight size={14} className="ml-auto text-ui-muted" />
                 </button>
               ))}
             </div>
-          </div>
+          </Card>
 
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="rounded-xl p-4"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <span className={color}>{icon}</span>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {label}
-        </span>
-      </div>
-      <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-        {value}
-      </p>
-      <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-        {sub}
-      </p>
     </div>
   );
 }

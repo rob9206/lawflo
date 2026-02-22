@@ -5,7 +5,11 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-_env_path = Path(__file__).resolve().parent.parent / ".env"
+_override_env_path = os.getenv("LAWFLOW_ENV_PATH")
+if _override_env_path:
+    _env_path = Path(_override_env_path).expanduser().resolve()
+else:
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=_env_path, override=True)
 
 

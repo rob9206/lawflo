@@ -15,6 +15,9 @@ data/processed/*
 # Frontend
 frontend/node_modules/
 frontend/dist/
+build/
+dist/
+installer/output/
 
 # IDE
 .vscode/
