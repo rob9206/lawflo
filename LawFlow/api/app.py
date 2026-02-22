@@ -90,9 +90,15 @@ def create_app(static_dir: str | None = None) -> Flask:
         from api.services.achievement_definitions import seed_achievements
         seed_achievements()
 
+        from api.services.subject_taxonomy import seed_subject_taxonomy
+        seed_subject_taxonomy()
+
     return app
 
 
+# Module-level app instance for tooling (gunicorn, flask CLI, auto-detection).
+# The factory is still available via create_app() for testing or custom config.
+app = create_app()
+
 if __name__ == "__main__":
-    app = create_app()
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
