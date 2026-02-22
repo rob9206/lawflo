@@ -4,28 +4,12 @@ import { useDropzone, FileRejection } from "react-dropzone";
 import { listDocuments, uploadDocument, deleteDocument } from "@/api/documents";
 import { convertDocument, downloadConvertedFile } from "@/api/converter";
 import { formatDate } from "@/lib/utils";
+import { SUBJECTS_WITH_AUTODETECT, DOC_TYPES } from "@/lib/constants";
+import PageHeader from "@/components/ui/PageHeader";
+import Card from "@/components/ui/Card";
+import Badge from "@/components/ui/Badge";
+import EmptyState from "@/components/ui/EmptyState";
 import { Upload, FileText, Trash2, Loader2, CheckCircle, AlertCircle, Download } from "lucide-react";
-
-const SUBJECTS = [
-  { value: "", label: "Auto-detect" },
-  { value: "con_law", label: "Constitutional Law" },
-  { value: "contracts", label: "Contracts" },
-  { value: "torts", label: "Torts" },
-  { value: "crim_law", label: "Criminal Law" },
-  { value: "civ_pro", label: "Civil Procedure" },
-  { value: "property", label: "Property" },
-  { value: "evidence", label: "Evidence" },
-  { value: "prof_responsibility", label: "Professional Responsibility" },
-];
-
-const DOC_TYPES = [
-  { value: "", label: "Auto-detect" },
-  { value: "casebook", label: "Casebook / Textbook" },
-  { value: "slides", label: "Lecture Slides" },
-  { value: "outline", label: "Outline / Notes" },
-  { value: "exam", label: "Past Exam" },
-  { value: "supplement", label: "Supplement" },
-];
 
 export default function DocumentsPage() {
   const queryClient = useQueryClient();
@@ -77,7 +61,6 @@ export default function DocumentsPage() {
       const result = await convertDocument(docId, format);
       
       if (result.download_url) {
-        // Extract filename from download_url
         const filename = result.download_url.split("/").pop();
         if (filename) {
           const downloadUrl = downloadConvertedFile(docId, filename);
@@ -125,35 +108,22 @@ export default function DocumentsPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
-        Documents
-      </h2>
+      <PageHeader icon={<FileText size={24} />} title="Documents" />
 
       {/* Upload zone */}
-      <div
-        className="rounded-xl p-6 mb-6"
-        style={{
-          backgroundColor: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
+      <Card padding="lg" className="mt-6 mb-6">
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
+            <label className="text-xs mb-1 block text-ui-secondary">
               Subject
             </label>
             <select
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
-              style={{
-                backgroundColor: "var(--bg-muted)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-              }}
+              className="input-base w-full"
+              aria-label="Subject"
             >
-              {SUBJECTS.map((s) => (
+              {SUBJECTS_WITH_AUTODETECT.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
@@ -161,18 +131,14 @@ export default function DocumentsPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs mb-1 block" style={{ color: "var(--text-secondary)" }}>
+            <label className="text-xs mb-1 block text-ui-secondary">
               Document Type
             </label>
             <select
               value={docType}
               onChange={(e) => setDocType(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
-              style={{
-                backgroundColor: "var(--bg-muted)",
-                border: "1px solid var(--border)",
-                color: "var(--text-primary)",
-              }}
+              className="input-base w-full"
+              aria-label="Document Type"
             >
               {DOC_TYPES.map((d) => (
                 <option key={d.value} value={d.value}>
@@ -192,42 +158,37 @@ export default function DocumentsPage() {
           }}
         >
           <input {...getInputProps()} />
-          <Upload size={32} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
-          <p style={{ color: "var(--text-secondary)" }}>
+          <Upload size={32} className="mx-auto mb-3 text-ui-muted" />
+          <p className="text-ui-secondary">
             {isDragActive
               ? "Drop files here..."
               : "Drag & drop PDF, PPTX, or DOCX files here"}
           </p>
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-1 text-ui-muted">
             Or click to browse. Max 100MB.
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* Document list */}
       {isLoading ? (
-        <div style={{ color: "var(--text-muted)" }}>Loading documents...</div>
+        <div className="text-ui-muted">Loading documents...</div>
       ) : docs.length === 0 ? (
-        <div className="text-center py-8" style={{ color: "var(--text-muted)" }}>
-          No documents uploaded yet. Upload your first casebook, slides, or outline above.
-        </div>
+        <EmptyState
+          icon={<FileText size={40} />}
+          message="No documents uploaded yet"
+          sub="Upload your first casebook, slides, or outline above."
+        />
       ) : (
         <div className="space-y-2">
           {docs.map((doc) => (
-            <div
-              key={doc.id}
-              className="rounded-lg px-4 py-3 flex items-center gap-4"
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <FileText size={20} className="shrink-0" style={{ color: "var(--text-muted)" }} />
+            <Card key={doc.id} padding="none" className="px-4 py-3 flex items-center gap-4">
+              <FileText size={20} className="shrink-0 text-ui-muted" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                <p className="text-sm font-medium truncate text-ui-primary">
                   {doc.filename}
                 </p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <p className="text-xs text-ui-muted">
                   {doc.subject || "untagged"} · {doc.file_type} · {formatDate(doc.created_at)}
                 </p>
               </div>
@@ -243,8 +204,7 @@ export default function DocumentsPage() {
                   <button
                     onClick={() => setShowConvertMenu(showConvertMenu === doc.id ? null : doc.id)}
                     disabled={convertingDoc === doc.id}
-                    className="p-1.5 transition-colors rounded hover:bg-opacity-10"
-                    style={{ color: "var(--accent)" }}
+                    className="p-1.5 transition-colors rounded hover:bg-opacity-10 text-accent-label"
                     title="Convert to another format"
                   >
                     {convertingDoc === doc.id ? (
@@ -255,55 +215,48 @@ export default function DocumentsPage() {
                   </button>
                   
                   {showConvertMenu === doc.id && (
-                    <div
-                      className="absolute right-0 mt-1 py-1 rounded-lg shadow-lg z-10"
-                      style={{
-                        backgroundColor: "var(--bg-card)",
-                        border: "1px solid var(--border)",
-                        minWidth: "160px",
-                      }}
+                    <Card
+                      padding="none"
+                      className="absolute right-0 mt-1 py-1 shadow-lg z-10"
+                      style={{ minWidth: "160px" }}
                     >
                       <button
                         onClick={() => handleConvert(doc.id, "pdf")}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
-                        style={{ color: "var(--text-primary)" }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors text-ui-primary"
                       >
                         📄 Convert to PDF
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "png")}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
-                        style={{ color: "var(--text-primary)" }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors text-ui-primary"
                       >
                         🖼️ Convert to Images
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "txt")}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
-                        style={{ color: "var(--text-primary)" }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors text-ui-primary"
                       >
                         📝 Convert to Text
                       </button>
                       <button
                         onClick={() => handleConvert(doc.id, "md")}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors"
-                        style={{ color: "var(--text-primary)" }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-opacity-10 transition-colors text-ui-primary"
                       >
                         📋 Convert to Markdown
                       </button>
-                    </div>
+                    </Card>
                   )}
                 </div>
               )}
               
               <button
                 onClick={() => deleteMutation.mutate(doc.id)}
-                className="p-1 transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="p-1 transition-colors text-ui-muted"
+                title="Delete document"
               >
                 <Trash2 size={16} />
               </button>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -323,29 +276,28 @@ function StatusBadge({
   switch (status) {
     case "completed":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
+        <Badge variant="success" className="flex items-center gap-1.5">
           <CheckCircle size={12} />
           {chunks} chunks
-        </span>
+        </Badge>
       );
     case "processing":
       return (
-        <span className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
+        <Badge variant="accent" className="flex items-center gap-1.5">
           <Loader2 size={12} className="animate-spin" />
           Processing
-        </span>
+        </Badge>
       );
     case "error":
       return (
-        <span
-          className="flex items-center gap-1.5 text-xs text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full max-w-xs"
-          title={errorMessage || "Processing failed"}
-        >
+        <Badge variant="danger" className="flex items-center gap-1.5 max-w-xs" title={errorMessage || "Processing failed"}>
           <AlertCircle size={12} className="shrink-0" />
           <span className="truncate">{errorMessage || "Error"}</span>
-        </span>
+        </Badge>
       );
     default:
-      return <span className="text-xs px-2.5 py-1" style={{ color: "var(--text-muted)" }}>Pending</span>;
+      return (
+        <Badge variant="muted">Pending</Badge>
+      );
   }
 }

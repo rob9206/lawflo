@@ -97,4 +97,22 @@ def end_session(session_id: str):
     result = tutor_engine.end_session(session_id)
     if not result:
         raise NotFoundError("Session not found")
+
+    # Award points if student actually engaged (5+ messages)
+    try:
+        msg_count = result.get("messages_count") or 0
+        if msg_count >= 5:
+            from api.services.rewards_engine import award_points
+            perf = result.get("performance_score") or 0
+            base = 30 + (10 if perf > 70 else 0)
+            reward = award_points(
+                "tutor_session", session_id,
+                f"Completed tutor session ({result.get('tutor_mode', 'study')})",
+                base_amount=base,
+                metadata={"subject": result.get("subject"), "mode": result.get("tutor_mode")},
+            )
+            result["points_awarded"] = reward
+    except Exception:
+        pass  # Don't break tutor flow if rewards fail
+
     return jsonify(result)

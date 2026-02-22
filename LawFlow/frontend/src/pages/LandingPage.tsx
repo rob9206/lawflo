@@ -7,11 +7,11 @@ import {
   Check,
   ChevronRight,
   Sparkles,
-  BookOpen,
   GraduationCap,
   Shield,
   Award,
 } from "lucide-react";
+import Card from "@/components/ui/Card";
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -37,8 +37,7 @@ export default function LandingPage() {
           </div>
           <button
             onClick={handleGetStarted}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="btn-primary px-4 py-2 text-sm font-semibold"
           >
             Get Started
           </button>
@@ -55,7 +54,7 @@ export default function LandingPage() {
                 Master Law School. Efficiently.
               </h1>
 
-              <p className="text-lg leading-relaxed max-w-xl" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-lg leading-relaxed max-w-xl text-ui-secondary">
                 Stop falling behind. Get AI tutoring that knows exactly where
                 you're struggling and drills you on what actually shows up on
                 exams.
@@ -63,8 +62,7 @@ export default function LandingPage() {
 
               <button
                 onClick={handleGetStarted}
-                className="group flex items-center gap-2 px-6 py-3 rounded-lg text-lg font-semibold text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: "var(--accent)" }}
+                className="btn-primary group px-6 py-3 text-lg font-semibold"
               >
                 Get Started Free
                 <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -97,12 +95,10 @@ export default function LandingPage() {
                 />
 
                 {/* Mock Study Session Card */}
-                <div 
-                  className="relative border-2 backdrop-blur-sm overflow-hidden shadow-lg rounded-xl"
-                  style={{ 
-                    backgroundColor: "var(--bg-card)",
-                    borderColor: "var(--accent-muted)"
-                  }}
+                <Card
+                  padding="none"
+                  className="relative border-2 backdrop-blur-sm overflow-hidden shadow-lg"
+                  style={{ borderColor: "var(--accent-muted)" }}
                 >
                   <div className="p-6">
                     {/* Header */}
@@ -135,13 +131,13 @@ export default function LandingPage() {
                             style={{ backgroundColor: "var(--accent)" }}
                           />
                         </div>
-                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        <p className="text-xs text-ui-muted">
                           75% mastery
                         </p>
                       </div>
 
                       <div className="space-y-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        <p className="text-sm font-medium text-ui-primary">
                           Next Concept:
                         </p>
                         <div 
@@ -156,7 +152,7 @@ export default function LandingPage() {
                             <p className="text-sm font-medium">
                               Consideration in Contracts
                             </p>
-                            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            <p className="text-xs mt-1 text-ui-muted">
                               Adaptive difficulty based on your level
                             </p>
                           </div>
@@ -182,7 +178,7 @@ export default function LandingPage() {
                       background: "linear-gradient(to bottom left, var(--accent-muted), transparent)"
                     }}
                   />
-                </div>
+                </Card>
               </div>
             </div>
           </div>
@@ -193,8 +189,7 @@ export default function LandingPage() {
       <section className="py-12 md:py-16 border-b" style={{ borderColor: "var(--border)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p 
-            className="text-center text-sm mb-8 uppercase tracking-widest font-medium"
-            style={{ color: "var(--text-muted)" }}
+            className="text-center text-sm mb-8 uppercase tracking-widest font-medium text-ui-muted"
           >
             Built with insights from top legal minds
           </p>
@@ -208,7 +203,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <p className="font-semibold text-base">Top Law Schools</p>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <p className="text-sm mt-1 leading-relaxed text-ui-muted">
                   Developed alongside professors from T14 law schools to ensure academic rigor and exam relevance
                 </p>
               </div>
@@ -222,7 +217,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <p className="font-semibold text-base">Practicing Attorneys</p>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <p className="text-sm mt-1 leading-relaxed text-ui-muted">
                   Refined by experienced lawyers who know what it takes to succeed in the courtroom and on the bar
                 </p>
               </div>
@@ -236,7 +231,7 @@ export default function LandingPage() {
               </div>
               <div>
                 <p className="font-semibold text-base">Bar Examiners</p>
-                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <p className="text-sm mt-1 leading-relaxed text-ui-muted">
                   Informed by bar exam graders who understand exactly what earns points and what doesn't
                 </p>
               </div>
@@ -255,7 +250,7 @@ export default function LandingPage() {
             <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
               Everything You Need to Ace Your Exams
             </h2>
-            <p className="text-lg max-w-2xl mx-auto" style={{ color: "var(--text-muted)" }}>
+            <p className="text-lg max-w-2xl mx-auto text-ui-muted">
               Designed specifically for law students who want to study smarter,
               not harder.
             </p>
@@ -263,73 +258,43 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Feature 1 */}
-            <div 
-              className="overflow-hidden border transition-all duration-300 rounded-xl p-6 md:p-8"
-              style={{ 
-                backgroundColor: "var(--bg-card)",
-                borderColor: "var(--border)",
-                boxShadow: "var(--shadow-card)"
-              }}
-            >
-              <div 
-                className="mb-4 inline-block p-3 rounded-lg"
-                style={{ backgroundColor: "var(--accent-muted)" }}
-              >
-                <Brain className="w-6 h-6" style={{ color: "var(--accent)" }} />
+            <Card padding="lg" className="overflow-hidden">
+              <div className="mb-4 inline-block p-3 rounded-lg bg-accent-muted">
+                <Brain className="w-6 h-6 text-accent" />
               </div>
               <h3 className="text-xl font-bold mb-3">AI-Powered Tutoring</h3>
-              <p className="leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              <p className="leading-relaxed text-ui-muted">
                 Get personalized lessons from AI that adapts to your knowledge
                 level. Choose between OpenAI GPT or Claude for your study
                 sessions.
               </p>
-            </div>
+            </Card>
 
             {/* Feature 2 */}
-            <div 
-              className="overflow-hidden border transition-all duration-300 rounded-xl p-6 md:p-8"
-              style={{ 
-                backgroundColor: "var(--bg-card)",
-                borderColor: "var(--border)",
-                boxShadow: "var(--shadow-card)"
-              }}
-            >
-              <div 
-                className="mb-4 inline-block p-3 rounded-lg"
-                style={{ backgroundColor: "var(--accent-muted)" }}
-              >
-                <Target className="w-6 h-6" style={{ color: "var(--accent)" }} />
+            <Card padding="lg" className="overflow-hidden">
+              <div className="mb-4 inline-block p-3 rounded-lg bg-accent-muted">
+                <Target className="w-6 h-6 text-accent" />
               </div>
               <h3 className="text-xl font-bold mb-3">Exam-Focused Learning</h3>
-              <p className="leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              <p className="leading-relaxed text-ui-muted">
                 Every concept is tied back to how it appears on exams. Master
                 IRAC methodology and spot exam traps before they spot you.
               </p>
-            </div>
+            </Card>
 
             {/* Feature 3 */}
-            <div 
-              className="overflow-hidden border transition-all duration-300 rounded-xl p-6 md:p-8"
-              style={{ 
-                backgroundColor: "var(--bg-card)",
-                borderColor: "var(--border)",
-                boxShadow: "var(--shadow-card)"
-              }}
-            >
-              <div 
-                className="mb-4 inline-block p-3 rounded-lg"
-                style={{ backgroundColor: "var(--accent-muted)" }}
-              >
-                <Upload className="w-6 h-6" style={{ color: "var(--accent)" }} />
+            <Card padding="lg" className="overflow-hidden">
+              <div className="mb-4 inline-block p-3 rounded-lg bg-accent-muted">
+                <Upload className="w-6 h-6 text-accent" />
               </div>
               <h3 className="text-xl font-bold mb-3">
                 Smart Document Analysis
               </h3>
-              <p className="leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              <p className="leading-relaxed text-ui-muted">
                 Upload PDFs, PowerPoints, and readings. The AI extracts key
                 concepts and uses them to create focused study sessions.
               </p>
-            </div>
+            </Card>
           </div>
         </div>
       </section>
@@ -340,14 +305,13 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-6 tracking-tight">
             Ready to Transform Your Studies?
           </h2>
-          <p className="text-lg mb-8" style={{ color: "var(--text-muted)" }}>
+          <p className="text-lg mb-8 text-ui-muted">
             Join law students who are mastering their courses with AI-powered
             study techniques.
           </p>
           <button
             onClick={handleGetStarted}
-            className="flex items-center gap-2 px-6 py-3 rounded-lg text-lg font-semibold text-white transition-all hover:opacity-90 mx-auto"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="btn-primary mx-auto px-6 py-3 text-lg font-semibold"
           >
             Start Your Free Trial
             <ChevronRight className="w-4 h-4" />
@@ -364,7 +328,7 @@ export default function LandingPage() {
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm" style={{ color: "var(--text-muted)" }}>
+          <div className="text-center text-sm text-ui-muted">
             <p>
               LawFlow - AI Study Companion{" "}
               <span className="mx-2">•</span>

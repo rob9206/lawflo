@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { Toaster } from "sonner";
 import Layout from "@/components/common/Layout";
 import TutorialModal from "@/components/common/TutorialModal";
 import { TutorialProvider } from "@/context/TutorialContext";
@@ -19,6 +20,8 @@ const SubjectDetailPage = lazy(() =>
 );
 const ExamSimulatorPage = lazy(() => import("@/pages/ExamSimulatorPage"));
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const RewardsPage = lazy(() => import("@/pages/RewardsPage"));
 
 function Loading() {
   return (
@@ -52,12 +55,25 @@ export default function App() {
                   <Route path="/subjects" element={<SubjectsListPage />} />
                   <Route path="/subjects/:subject" element={<SubjectDetailPage />} />
                   <Route path="/exam" element={<ExamSimulatorPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/rewards" element={<RewardsPage />} />
                 </Routes>
               </Layout>
             } />
           </Routes>
         </Suspense>
         <TutorialModal />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
+              fontSize: "14px",
+            },
+          }}
+        />
       </TutorialProvider>
     </BrowserRouter>
   );

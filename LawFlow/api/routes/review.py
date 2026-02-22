@@ -105,6 +105,36 @@ def generate_chunk_cards(chunk_id: str):
     })
 
 
+@bp.route("/complete-session", methods=["POST"])
+def complete_flashcard_session():
+    """Award points for a completed flashcard review session.
+
+    Called by the frontend when the flashcard session completion screen renders.
+    Body: { "cards_reviewed": int, "avg_quality": float }
+    """
+    data = request.get_json(force=True)
+    cards = data.get("cards_reviewed", 0)
+    avg_quality = data.get("avg_quality", 3.0)
+
+    if cards <= 0:
+        return jsonify({"points_awarded": 0, "message": "No cards reviewed"})
+
+    # 3 pts/card + 1 extra/card if avg quality >= 4 (Good/Easy)
+    base = cards * 3 + (cards if avg_quality >= 4 else 0)
+
+    try:
+        from api.services.rewards_engine import award_points
+        result = award_points(
+            "flashcard_session", None,
+            f"Reviewed {cards} flashcards",
+            base_amount=base,
+            metadata={"cards": cards, "avg_quality": round(avg_quality, 2)},
+        )
+        return jsonify(result)
+    except Exception:
+        return jsonify({"points_awarded": 0, "message": "Error awarding points"})
+
+
 @bp.route("/cards/<card_id>", methods=["DELETE"])
 def remove_card(card_id: str):
     """Delete a specific card."""

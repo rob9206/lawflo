@@ -12,16 +12,12 @@ import {
   Area,
 } from "recharts";
 import { getDashboard, getStudyHistory, getStreaks } from "@/api/progress";
-import { masteryColor } from "@/lib/utils";
+import { masteryColor, masteryBarColor } from "@/lib/utils";
 import { Flame, Calendar, Clock, TrendingUp, BarChart2, BookOpen } from "lucide-react";
-
-function masteryBarColor(score: number) {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#10b981";
-  if (score >= 40) return "#f59e0b";
-  if (score >= 20) return "#f97316";
-  return "#ef4444";
-}
+import Card from "@/components/ui/Card";
+import StatCard from "@/components/ui/StatCard";
+import PageHeader from "@/components/ui/PageHeader";
+import MasteryBar from "@/components/ui/MasteryBar";
 
 const chartTooltipStyle = {
   backgroundColor: "var(--bg-card)",
@@ -59,53 +55,50 @@ export default function ProgressPage() {
     { label: "Beginning", count: allTopics.filter((t) => t.mastery_score < 20).length, color: "#ef4444" },
   ];
 
-  // Recent 14 days for the area chart label abbreviations
   const recentHistory = history.slice(-14).map((d) => ({
     ...d,
-    label: d.date.slice(5), // "MM-DD"
+    label: d.date.slice(5),
   }));
 
-  // Subject comparison data
   const subjectChartData = subjects.map((s) => ({
-    name: s.display_name.split(" ")[0], // first word for brevity
+    name: s.display_name.split(" ")[0],
     mastery: Math.round(s.mastery_score),
     fill: masteryBarColor(s.mastery_score),
   }));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-          Progress
-        </h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-          Your learning analytics over the past 30 days
-        </p>
-      </div>
+      <PageHeader
+        title="Progress"
+        subtitle="Your learning analytics over the past 30 days"
+      />
 
       {/* Streak stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StreakCard
-          icon={<Flame size={20} className="text-orange-400" />}
+        <StatCard
+          icon={<Flame size={20} />}
+          color="text-orange-400"
           label="Current Streak"
           value={`${streaks?.current_streak ?? 0}`}
           sub="days in a row"
         />
-        <StreakCard
-          icon={<TrendingUp size={20} className="text-emerald-400" />}
+        <StatCard
+          icon={<TrendingUp size={20} />}
+          color="text-emerald-400"
           label="Longest Streak"
           value={`${streaks?.longest_streak ?? 0}`}
           sub="days record"
         />
-        <StreakCard
-          icon={<Calendar size={20} className="text-blue-400" />}
+        <StatCard
+          icon={<Calendar size={20} />}
+          color="text-blue-400"
           label="Total Study Days"
           value={`${streaks?.total_days ?? 0}`}
           sub="since joining"
         />
-        <StreakCard
-          icon={<Clock size={20} className="text-indigo-400" />}
+        <StatCard
+          icon={<Clock size={20} />}
+          color="text-indigo-400"
           label="Total Hours"
           value={`${Math.round((dashboard?.stats.total_study_minutes ?? 0) / 60)}`}
           sub="hours studied"
@@ -114,19 +107,11 @@ export default function ProgressPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
         {/* Study time bar chart */}
-        <div
-          className="rounded-xl p-5"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
+        <Card padding="lg">
           <div className="flex items-center gap-2 mb-4">
-            <BarChart2 size={16} style={{ color: "var(--text-muted)" }} />
-            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <BarChart2 size={16} className="text-ui-muted" />
+            <h3 className="text-sm font-semibold text-ui-primary">
               Daily Study Time (last 14 days)
             </h3>
           </div>
@@ -156,20 +141,13 @@ export default function ProgressPage() {
               </BarChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Card>
 
         {/* Sessions area chart */}
-        <div
-          className="rounded-xl p-5"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
+        <Card padding="lg">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={16} style={{ color: "var(--text-muted)" }} />
-            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <TrendingUp size={16} className="text-ui-muted" />
+            <h3 className="text-sm font-semibold text-ui-primary">
               Study Sessions (last 14 days)
             </h3>
           </div>
@@ -212,23 +190,15 @@ export default function ProgressPage() {
               </AreaChart>
             </ResponsiveContainer>
           )}
-        </div>
-
+        </Card>
       </div>
 
       {/* Subject comparison */}
       {subjectChartData.length > 0 && (
-        <div
-          className="rounded-xl p-5"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
+        <Card padding="lg">
           <div className="flex items-center gap-2 mb-4">
-            <BookOpen size={16} style={{ color: "var(--text-muted)" }} />
-            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            <BookOpen size={16} className="text-ui-muted" />
+            <h3 className="text-sm font-semibold text-ui-primary">
               Subject Mastery Comparison
             </h3>
           </div>
@@ -267,44 +237,31 @@ export default function ProgressPage() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
       )}
 
       {/* Mastery distribution + Topic heatmap */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-
         {/* Distribution */}
-        <div
-          className="rounded-xl p-5"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>
+        <Card padding="lg">
+          <h3 className="text-sm font-semibold mb-4 text-ui-primary">
             Mastery Distribution
           </h3>
           {allTopics.length === 0 ? (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>No topics yet.</p>
+            <p className="text-xs text-ui-muted">No topics yet.</p>
           ) : (
             <div className="space-y-3">
               {distribution.map(({ label, count, color }) => (
                 <div key={label}>
                   <div className="flex justify-between mb-1">
-                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                      {label}
-                    </span>
+                    <span className="text-xs text-ui-secondary">{label}</span>
                     <span className="text-xs font-semibold" style={{ color }}>
                       {count}
                     </span>
                   </div>
-                  <div
-                    className="h-2 rounded-full overflow-hidden"
-                    style={{ backgroundColor: "var(--bg-muted)" }}
-                  >
+                  <div className="progress-track">
                     <div
-                      className="h-full rounded-full"
+                      className="progress-fill"
                       style={{
                         width: allTopics.length > 0 ? `${(count / allTopics.length) * 100}%` : "0%",
                         backgroundColor: color,
@@ -313,27 +270,20 @@ export default function ProgressPage() {
                   </div>
                 </div>
               ))}
-              <p className="text-[10px] pt-1" style={{ color: "var(--text-muted)" }}>
+              <p className="text-[10px] pt-1 text-ui-muted">
                 {allTopics.length} total topics tracked
               </p>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Topic table */}
-        <div
-          className="rounded-xl p-5"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>
+        <Card padding="lg">
+          <h3 className="text-sm font-semibold mb-4 text-ui-primary">
             All Topics
           </h3>
           {allTopics.length === 0 ? (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>No topics yet.</p>
+            <p className="text-xs text-ui-muted">No topics yet.</p>
           ) : (
             <div className="overflow-auto max-h-80">
               <table className="w-full text-xs">
@@ -342,8 +292,7 @@ export default function ProgressPage() {
                     {["Topic", "Subject", "Mastery", "Sessions", "Accuracy"].map((h) => (
                       <th
                         key={h}
-                        className="text-left pb-2 pr-4 font-medium"
-                        style={{ color: "var(--text-muted)" }}
+                        className="text-left pb-2 pr-4 font-medium text-ui-muted"
                       >
                         {h}
                       </th>
@@ -361,35 +310,26 @@ export default function ProgressPage() {
                           key={topic.id}
                           style={{ borderBottom: "1px solid var(--border)" }}
                         >
-                          <td className="py-2 pr-4 font-medium" style={{ color: "var(--text-primary)" }}>
+                          <td className="py-2 pr-4 font-medium text-ui-primary">
                             {topic.display_name}
                           </td>
-                          <td className="py-2 pr-4" style={{ color: "var(--text-muted)" }}>
+                          <td className="py-2 pr-4 text-ui-muted">
                             {topic.subject}
                           </td>
                           <td className="py-2 pr-4">
                             <div className="flex items-center gap-2">
-                              <div
-                                className="h-1.5 w-16 rounded-full overflow-hidden"
-                                style={{ backgroundColor: "var(--bg-muted)" }}
-                              >
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${topic.mastery_score}%`,
-                                    backgroundColor: masteryBarColor(topic.mastery_score),
-                                  }}
-                                />
+                              <div className="w-16">
+                                <MasteryBar score={topic.mastery_score} size="sm" />
                               </div>
                               <span className={masteryColor(topic.mastery_score)}>
                                 {topic.mastery_score.toFixed(0)}%
                               </span>
                             </div>
                           </td>
-                          <td className="py-2 pr-4" style={{ color: "var(--text-muted)" }}>
+                          <td className="py-2 pr-4 text-ui-muted">
                             {topic.exposure_count}
                           </td>
-                          <td className="py-2" style={{ color: "var(--text-muted)" }}>
+                          <td className="py-2 text-ui-muted">
                             {accuracy !== null ? `${accuracy}%` : "—"}
                           </td>
                         </tr>
@@ -399,57 +339,18 @@ export default function ProgressPage() {
               </table>
             </div>
           )}
-        </div>
+        </Card>
       </div>
-    </div>
-  );
-}
-
-function StreakCard({
-  icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-}) {
-  return (
-    <div
-      className="rounded-xl p-4"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        {icon}
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {label}
-        </span>
-      </div>
-      <p className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
-        {value}
-      </p>
-      <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-        {sub}
-      </p>
     </div>
   );
 }
 
 function EmptyChart() {
   return (
-    <div
-      className="h-[180px] rounded-xl flex items-center justify-center"
-      style={{ backgroundColor: "var(--bg-muted)" }}
-    >
-      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+    <Card padding="none" className="h-[180px] flex items-center justify-center bg-[var(--bg-muted)]">
+      <p className="text-xs text-ui-muted">
         No data yet — start studying!
       </p>
-    </div>
+    </Card>
   );
 }
