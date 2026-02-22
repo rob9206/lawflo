@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import { getTeachingPlan, startAutoSession, type TeachingTarget } from "@/api/autoTeach";
@@ -20,9 +21,15 @@ import {
   BookOpen,
 } from "lucide-react";
 
+const SUBJECT_VALUES = new Set(SUBJECTS_REQUIRED.map((s) => s.value));
+
 export default function AutoTeachPage() {
+  const [searchParams] = useSearchParams();
+  const subjectFromUrl = searchParams.get("subject");
   const fireRewardToast = useRewardToast();
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(() =>
+    subjectFromUrl && SUBJECT_VALUES.has(subjectFromUrl) ? subjectFromUrl : null
+  );
   const [availableMinutes, setAvailableMinutes] = useState<number>(60);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -45,6 +52,13 @@ export default function AutoTeachPage() {
     queryFn: () => getTeachingPlan(selectedSubject!, { available_minutes: availableMinutes }),
     enabled: !!selectedSubject,
   });
+
+  // Sync subject from URL when navigating to /auto-teach?subject=... (only when none selected)
+  useEffect(() => {
+    if (subjectFromUrl && SUBJECT_VALUES.has(subjectFromUrl) && !selectedSubject) {
+      setSelectedSubject(subjectFromUrl);
+    }
+  }, [subjectFromUrl, selectedSubject]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
