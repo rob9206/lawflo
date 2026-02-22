@@ -11,7 +11,7 @@
     {
       "name": "api",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "api.app"],
+      "runtimeArgs": ["-m", "flask", "--app", "api.app:create_app", "run", "--debug", "--port", "5002"],
       "port": 5002
     }
   ]

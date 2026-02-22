@@ -93,9 +93,15 @@ def create_app(static_dir: str | None = None) -> Flask:
     return app
 
 
-# Module-level app instance for tooling (gunicorn, flask CLI, auto-detection).
-# The factory is still available via create_app() for testing or custom config.
+# Module-level app instance for tooling (gunicorn, hosting auto-detection).
+# The create_app() factory is still available for testing or custom config.
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
+    # Reloader disabled: module-level create_app() imports blueprints and
+    # touches DB/cache files on every reimport, which the stat reloader
+    # detects as changes → infinite restart loop.
+    # For auto-reloading in dev, use the launch.json "api" config instead
+    # (flask CLI handles factory-pattern reloading correctly).
+    app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG,
+            use_reloader=False)
