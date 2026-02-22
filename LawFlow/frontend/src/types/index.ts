@@ -93,3 +93,52 @@ export interface DashboardData {
     overall_mastery: number;
   };
 }
+
+// ── Rewards / Gamification ────────────────────────────────────────
+
+export type AchievementRarity = "common" | "uncommon" | "rare" | "legendary";
+
+export interface RewardTransaction {
+  id: string;
+  amount: number;
+  activity_type: string;
+  activity_id: string | null;
+  description: string;
+  bonus_type: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface RewardsSummary {
+  balance: number;
+  total_earned: number;
+  level: number;
+  level_progress: number;
+  next_level_at: number | null;
+  active_title: string;
+  current_streak: number;
+  longest_streak: number;
+  recent_transactions: RewardTransaction[];
+}
+
+export interface Achievement {
+  id: string;
+  achievement_key: string;
+  title: string;
+  description: string;
+  icon: string;
+  rarity: AchievementRarity;
+  points_awarded: number;
+  unlocked: boolean;
+  unlocked_at: string | null;
+  target_value: number;
+  current_value: number;
+  progress: number;
+}
+
+export interface RewardsLedger {
+  entries: RewardTransaction[];
+  total: number;
+  limit: number;
+  offset: number;
+}

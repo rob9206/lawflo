@@ -8,6 +8,7 @@ from api.models.assessment import Assessment, AssessmentQuestion
 from api.models.study_plan import StudyPlan, PlanTask
 from api.models.review import SpacedRepetitionCard
 from api.models.exam_blueprint import ExamBlueprint, ExamTopicWeight
+from api.models.rewards import PointLedger, Achievement, RewardsProfile
 
 __all__ = [
     "Base",
@@ -24,4 +25,7 @@ __all__ = [
     "SpacedRepetitionCard",
     "ExamBlueprint",
     "ExamTopicWeight",
+    "PointLedger",
+    "Achievement",
+    "RewardsProfile",
 ]

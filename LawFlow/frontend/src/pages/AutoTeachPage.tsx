@@ -1,13 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
-import { getTeachingPlan, startAutoSession, type TeachingPlan, type TeachingTarget } from "@/api/autoTeach";
+import { getTeachingPlan, startAutoSession, type TeachingTarget } from "@/api/autoTeach";
 import { getMastery } from "@/api/progress";
 import { sendMessageStream } from "@/api/tutor";
-import { masteryColor, cleanMarkdown } from "@/lib/utils";
+import { useRewardToast } from "@/hooks/useRewardToast";
+import { masteryColor, cleanMarkdown, cn } from "@/lib/utils";
+import { SUBJECTS_REQUIRED, AUTOTEACH_MODE_LABELS } from "@/lib/constants";
+import Card from "@/components/ui/Card";
+import PageHeader from "@/components/ui/PageHeader";
+import Badge from "@/components/ui/Badge";
 import {
   Zap,
-  Target,
   ChevronRight,
   Clock,
   Send,
@@ -16,27 +20,8 @@ import {
   BookOpen,
 } from "lucide-react";
 
-const SUBJECTS = [
-  { value: "con_law", label: "Constitutional Law" },
-  { value: "contracts", label: "Contracts" },
-  { value: "torts", label: "Torts" },
-  { value: "crim_law", label: "Criminal Law" },
-  { value: "civ_pro", label: "Civil Procedure" },
-  { value: "property", label: "Property" },
-  { value: "evidence", label: "Evidence" },
-  { value: "prof_responsibility", label: "Prof. Responsibility" },
-];
-
-const MODE_LABELS: Record<string, string> = {
-  explain: "Learn",
-  socratic: "Question",
-  hypo: "Hypo Drill",
-  issue_spot: "Issue Spot",
-  irac: "IRAC",
-  exam_strategy: "Exam Prep",
-};
-
 export default function AutoTeachPage() {
+  const fireRewardToast = useRewardToast();
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [availableMinutes, setAvailableMinutes] = useState<number>(60);
 
@@ -140,28 +125,24 @@ export default function AutoTeachPage() {
   if (sessionId) {
     return (
       <div className="flex flex-col h-[calc(100vh-3rem)]">
-        <div
-          className="flex items-center justify-between pb-4"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
+        <div className="flex items-center justify-between pb-4 border-b border-[var(--border)]">
           <div className="flex items-center gap-3">
             <Zap size={20} className="text-amber-400" />
             <div>
-              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                AutoTeach Session
-              </h2>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {MODE_LABELS[sessionMode] || sessionMode} · {sessionTopic}
+              <h2 className="font-semibold text-ui-primary">AutoTeach Session</h2>
+              <p className="text-xs text-ui-muted">
+                {AUTOTEACH_MODE_LABELS[sessionMode] || sessionMode} · {sessionTopic}
               </p>
             </div>
           </div>
           <button
-            onClick={() => { setSessionId(null); setMessages([]); }}
-            className="text-xs px-3 py-1 rounded-lg transition-colors"
-            style={{
-              color: "var(--text-muted)",
-              border: "1px solid var(--border)",
+            onClick={() => {
+              setSessionId(null);
+              setMessages([]);
+              // Check if XP was earned during this session
+              void fireRewardToast().catch(() => {});
             }}
+            className="btn-secondary text-xs px-3 py-1 rounded-lg"
           >
             Back to Plan
           </button>
@@ -266,95 +247,77 @@ export default function AutoTeachPage() {
   // Subject selection + teaching plan
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Zap size={24} className="text-amber-400" />
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-            AutoTeach
-          </h2>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            AI-optimized study sessions that teach you exactly what you need
-          </p>
-        </div>
+      <div className="mb-6">
+        <PageHeader
+          icon={<Zap size={24} />}
+          title="AutoTeach"
+          subtitle="AI-optimized study sessions that teach you exactly what you need"
+        />
       </div>
 
       {/* Subject picker */}
       <div className="grid grid-cols-4 gap-2 mb-6">
-        {SUBJECTS.map((s) => {
+        {SUBJECTS_REQUIRED.map((s) => {
           const m = masteryData?.find((x) => x.subject === s.value);
+          const active = selectedSubject === s.value;
           return (
-            <button
+            <Card
               key={s.value}
+              hover
+              padding="none"
+              className={cn(
+                "text-left px-4 py-3 cursor-pointer transition-all",
+                active && "!border-amber-500 !bg-amber-500/10"
+              )}
               onClick={() => setSelectedSubject(s.value)}
-              className="text-left px-4 py-3 rounded-xl transition-all"
-              style={{
-                backgroundColor:
-                  selectedSubject === s.value ? "rgba(245,158,11,0.10)" : "var(--bg-card)",
-                border: `1px solid ${selectedSubject === s.value ? "#f59e0b" : "var(--border)"}`,
-                color: selectedSubject === s.value ? "#fbbf24" : "var(--text-primary)",
-              }}
             >
-              <p className="text-sm font-medium">{s.label}</p>
-              <p
-                className={`text-xs mt-0.5 ${m ? masteryColor(m.mastery_score) : ""}`}
-                style={!m ? { color: "var(--text-muted)" } : undefined}
-              >
+              <p className={cn("text-sm font-medium", active ? "text-amber-300" : "text-ui-primary")}>
+                {s.label}
+              </p>
+              <p className={cn("text-xs mt-0.5", m ? masteryColor(m.mastery_score) : "text-ui-muted")}>
                 {m ? `${m.mastery_score.toFixed(0)}% mastery` : "Not started"}
               </p>
-            </button>
+            </Card>
           );
         })}
       </div>
 
       {/* Time budget */}
       {selectedSubject && (
-        <div
-          className="flex items-center gap-4 mb-6 p-4 rounded-xl"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <Clock size={18} style={{ color: "var(--text-muted)" }} />
-          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            I have
-          </span>
+        <Card className="flex items-center gap-4 mb-6">
+          <Clock size={18} className="text-ui-muted" />
+          <span className="text-sm text-ui-secondary">I have</span>
           <div className="flex gap-2">
             {[30, 60, 90, 120].map((mins) => (
               <button
                 key={mins}
                 onClick={() => setAvailableMinutes(mins)}
-                className="px-3 py-1 rounded-lg text-sm transition-all"
-                style={{
-                  backgroundColor:
-                    availableMinutes === mins ? "rgba(245,158,11,0.15)" : "var(--bg-muted)",
-                  color: availableMinutes === mins ? "#fbbf24" : "var(--text-secondary)",
-                  border: `1px solid ${availableMinutes === mins ? "#f59e0b" : "var(--border)"}`,
-                }}
+                className={cn(
+                  "px-3 py-1 rounded-lg text-sm transition-all border",
+                  availableMinutes === mins
+                    ? "bg-amber-500/15 text-amber-300 border-amber-500"
+                    : "bg-[var(--bg-muted)] text-ui-secondary border-[var(--border)]"
+                )}
               >
                 {mins}m
               </button>
             ))}
           </div>
-          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            to study
-          </span>
-        </div>
+          <span className="text-sm text-ui-secondary">to study</span>
+        </Card>
       )}
 
       {planLoading && (
-        <div className="animate-pulse" style={{ color: "var(--text-muted)" }}>
-          Computing optimal study plan...
-        </div>
+        <div className="animate-pulse text-ui-muted">Computing optimal study plan...</div>
       )}
 
       {plan && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+            <h3 className="text-lg font-semibold text-ui-primary">
               Study Plan — {plan.subject_display}
             </h3>
-            <div className="flex items-center gap-4 text-sm" style={{ color: "var(--text-muted)" }}>
+            <div className="flex items-center gap-4 text-sm text-ui-muted">
               <span className="flex items-center gap-1">
                 <Clock size={14} />
                 {plan.total_estimated_minutes}m total
@@ -369,16 +332,9 @@ export default function AutoTeachPage() {
           </div>
 
           {sessionError && (
-            <div
-              className="mb-4 px-4 py-3 rounded-xl text-sm"
-              style={{
-                backgroundColor: "rgba(239,68,68,0.10)",
-                border: "1px solid rgba(239,68,68,0.35)",
-                color: "#f87171",
-              }}
-            >
+            <Card className="mb-4 !bg-red-500/10 !border-red-500/35 text-red-400 text-sm">
               {sessionError}
-            </div>
+            </Card>
           )}
 
           {plan.auto_session && (
@@ -425,45 +381,28 @@ function TopicRow({
   disabled?: boolean;
 }) {
   return (
-    <div
-      className="rounded-xl p-4 flex items-center gap-4"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border)",
-      }}
-    >
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-        style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
-      >
+    <Card className="flex items-center gap-4">
+      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-[var(--bg-muted)] text-ui-muted">
         {rank}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <p className="font-medium" style={{ color: "var(--text-primary)" }}>
-            {target.display_name}
-          </p>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full ${masteryColor(target.mastery)}`}
-            style={{ backgroundColor: "var(--bg-muted)" }}
-          >
+          <p className="font-medium text-ui-primary">{target.display_name}</p>
+          <Badge className={masteryColor(target.mastery)}>
             {target.mastery.toFixed(0)}%
-          </span>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "var(--bg-muted)", color: "var(--text-muted)" }}
-          >
-            {MODE_LABELS[target.recommended_mode] || target.recommended_mode}
-          </span>
+          </Badge>
+          <Badge>
+            {AUTOTEACH_MODE_LABELS[target.recommended_mode] || target.recommended_mode}
+          </Badge>
         </div>
-        <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs mt-0.5 text-ui-muted">
           {target.mode_reason}
           {hasExamData && ` · ${(target.exam_weight * 100).toFixed(0)}% of exam`}
         </p>
       </div>
 
-      <div className="text-right text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+      <div className="text-right text-xs shrink-0 text-ui-muted">
         <p>{target.time_estimate_minutes}m</p>
         {target.knowledge_chunks_available > 0 && (
           <p className="flex items-center gap-1 justify-end">
@@ -476,14 +415,10 @@ function TopicRow({
       <button
         onClick={onStart}
         disabled={disabled}
-        className="shrink-0 p-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: "var(--bg-muted)",
-          color: "var(--text-muted)",
-        }}
+        className="shrink-0 p-2 rounded-lg transition-colors bg-[var(--bg-muted)] text-ui-muted disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <ChevronRight size={18} />
       </button>
-    </div>
+    </Card>
   );
 }

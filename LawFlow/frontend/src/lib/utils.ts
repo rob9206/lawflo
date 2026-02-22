@@ -30,6 +30,46 @@ export function masteryBg(score: number): string {
   return "bg-red-500/20";
 }
 
+export function masteryBarColor(score: number): string {
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#10b981";
+  if (score >= 40) return "#f59e0b";
+  if (score >= 20) return "#f97316";
+  return "#ef4444";
+}
+
+export function masteryLabel(score: number): string {
+  if (score >= 80) return "Mastered";
+  if (score >= 60) return "Advanced";
+  if (score >= 40) return "Proficient";
+  if (score >= 20) return "Developing";
+  return "Beginning";
+}
+
+export function scoreColor(score: number): string {
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#10b981";
+  if (score >= 40) return "#f59e0b";
+  if (score >= 20) return "#f97316";
+  return "#ef4444";
+}
+
+export function scoreLabel(score: number): string {
+  if (score >= 90) return "Excellent";
+  if (score >= 80) return "Strong";
+  if (score >= 70) return "Good";
+  if (score >= 60) return "Adequate";
+  if (score >= 50) return "Needs Work";
+  if (score >= 35) return "Weak";
+  return "Critical Gap";
+}
+
+export function priorityLevel(score: number): "high" | "medium" | "low" {
+  if (score < 30) return "high";
+  if (score < 55) return "medium";
+  return "low";
+}
+
 /**
  * Clean up markdown formatting issues in AI-generated content.
  * Fixes concatenated words, unclosed tags, missing spaces, etc.

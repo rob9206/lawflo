@@ -70,3 +70,14 @@ export async function generateCardsForSubject(
 export async function deleteCard(cardId: string): Promise<void> {
   await api.delete(`/review/cards/${cardId}`);
 }
+
+export async function completeFlashcardSession(
+  cardsReviewed: number,
+  avgQuality: number
+): Promise<Record<string, unknown>> {
+  const { data } = await api.post("/review/complete-session", {
+    cards_reviewed: cardsReviewed,
+    avg_quality: avgQuality,
+  });
+  return data;
+}
