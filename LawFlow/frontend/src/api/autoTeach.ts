@@ -56,6 +56,12 @@ export async function getTeachingPlan(
   return data;
 }
 
+/** Run subject/topic seed so AutoTeach has topics. Safe to call multiple times. */
+export async function runSeed(): Promise<{ status: string; message: string }> {
+  const { data } = await api.post("/seed");
+  return data;
+}
+
 export async function getNextTopic(subject: string): Promise<TeachingTarget | null> {
   const { data } = await api.get(`/auto-teach/next/${subject}`);
   return data;
@@ -97,15 +103,19 @@ export async function startAutoSession(
 
     for (const line of lines) {
       if (line.startsWith("data: ")) {
-        const text = line.slice(6);
-        if (text === "[DONE]") {
+        const raw = line.slice(6);
+        if (raw === "[DONE]") {
           onDone?.(sessionId, mode, resolvedTopic);
           return;
         }
-        if (text.startsWith("[ERROR]")) {
-          throw new Error(text.slice(7).trim() || "Auto-teach session error");
+        if (raw.startsWith("[ERROR]")) {
+          throw new Error(raw.slice(7).trim() || "Auto-teach session error");
         }
-        onChunk?.(text);
+        try {
+          onChunk?.(JSON.parse(raw));
+        } catch {
+          onChunk?.(raw);
+        }
       }
     }
   }

@@ -1,11 +1,16 @@
 """AutoTeach routes — intelligent study orchestration."""
 
+import json
+import re
+
 from flask import Blueprint, request, jsonify, Response
 
 from api.errors import ValidationError, NotFoundError
 from api.services.auto_teach import generate_teaching_plan, get_next_topic
 from api.services.exam_analyzer import analyze_exam, get_exam_blueprints
 from api.services import tutor_engine
+
+_PERF_TAG_RE = re.compile(r"<performance>[\s\S]*?</performance>")
 
 bp = Blueprint("auto_teach", __name__, url_prefix="/api/auto-teach")
 
@@ -93,11 +98,28 @@ def start_auto_session():
         topics=[topic],
     )
 
-    # Stream the opening response
+    # Stream the opening response, filtering <performance> metadata
     def generate():
+        perf_buf = ""
         try:
             for chunk in tutor_engine.send_message(session["id"], opening):
-                yield f"data: {chunk}\n\n"
+                text = perf_buf + chunk
+                perf_buf = ""
+
+                # Buffer incomplete <performance> tags until they close
+                perf_start = text.find("<performance")
+                if perf_start != -1:
+                    perf_end = text.find("</performance>")
+                    if perf_end != -1:
+                        text = text[:perf_start] + text[perf_end + len("</performance>"):]
+                    else:
+                        perf_buf = text[perf_start:]
+                        text = text[:perf_start]
+
+                # Strip any fully-formed tags that span multiple chunks
+                text = _PERF_TAG_RE.sub("", text)
+                if text:
+                    yield f"data: {json.dumps(text)}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"

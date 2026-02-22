@@ -340,8 +340,12 @@ export default function ExamSimulatorPage() {
                 Failed to generate exam
               </p>
               <p className="text-xs mt-1 text-ui-muted">
-                {(generateMutation.error as Error)?.message ||
+                {(generateMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+                  (generateMutation.error as Error)?.message ||
                   "Make sure you have uploaded documents for this subject."}
+              </p>
+              <p className="text-xs mt-1 text-ui-muted">
+                If the message says no topics were found, go to AutoTeach and click &quot;Seed database&quot; first.
               </p>
             </div>
           </div>

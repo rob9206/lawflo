@@ -1,10 +1,15 @@
 """AI tutor session routes with SSE streaming."""
 
+import json
+import re
+
 from flask import Blueprint, request, jsonify, Response
 
 from api.errors import ValidationError, NotFoundError
 from api.services import tutor_engine
 from api.services.prompt_library import MODES
+
+_PERF_TAG_RE = re.compile(r"<performance>[\s\S]*?</performance>")
 
 bp = Blueprint("tutor", __name__, url_prefix="/api/tutor")
 
@@ -65,9 +70,24 @@ def send_message():
         raise ValidationError("session_id and content are required")
 
     def generate():
+        perf_buf = ""
         try:
             for chunk in tutor_engine.send_message(session_id, content):
-                yield f"data: {chunk}\n\n"
+                text = perf_buf + chunk
+                perf_buf = ""
+
+                perf_start = text.find("<performance")
+                if perf_start != -1:
+                    perf_end = text.find("</performance>")
+                    if perf_end != -1:
+                        text = text[:perf_start] + text[perf_end + len("</performance>"):]
+                    else:
+                        perf_buf = text[perf_start:]
+                        text = text[:perf_start]
+
+                text = _PERF_TAG_RE.sub("", text)
+                if text:
+                    yield f"data: {json.dumps(text)}\n\n"
             yield "data: [DONE]\n\n"
         except ValueError as e:
             yield f"data: [ERROR] {str(e)}\n\n"

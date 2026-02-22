@@ -97,12 +97,11 @@ export default function TutorPage() {
           setStreamingText(accumulated);
         },
         () => {
-          const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
           const assistantMsg: SessionMessage = {
             id: crypto.randomUUID(),
             session_id: sessionId,
             role: "assistant",
-            content: clean,
+            content: accumulated.trim(),
             message_index: messages.length + 1,
             created_at: new Date().toISOString(),
           };
@@ -239,7 +238,7 @@ export default function TutorPage() {
             >
               <div className="prose-tutor">
                 <ReactMarkdown>
-                  {cleanMarkdown(streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, ""))}
+                  {cleanMarkdown(streamingText)}
                 </ReactMarkdown>
               </div>
             </div>

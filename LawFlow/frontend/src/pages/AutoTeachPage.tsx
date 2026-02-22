@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
-import { getTeachingPlan, startAutoSession, type TeachingTarget } from "@/api/autoTeach";
+import { getTeachingPlan, runSeed, startAutoSession, type TeachingTarget } from "@/api/autoTeach";
 import { getMastery } from "@/api/progress";
 import { sendMessageStream } from "@/api/tutor";
 import { useRewardToast } from "@/hooks/useRewardToast";
@@ -26,7 +26,10 @@ const SUBJECT_VALUES = new Set(SUBJECTS_REQUIRED.map((s) => s.value));
 export default function AutoTeachPage() {
   const [searchParams] = useSearchParams();
   const subjectFromUrl = searchParams.get("subject");
+  const queryClient = useQueryClient();
   const fireRewardToast = useRewardToast();
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(() =>
     subjectFromUrl && SUBJECT_VALUES.has(subjectFromUrl) ? subjectFromUrl : null
   );
@@ -82,11 +85,10 @@ export default function AutoTeachPage() {
           setStreamingText(accumulated);
         },
         (sid, mode, resolvedTopic) => {
-          const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
           setSessionId(sid);
           setSessionMode(mode);
           setSessionTopic(resolvedTopic);
-          setMessages([{ role: "assistant", content: clean }]);
+          setMessages([{ role: "assistant", content: accumulated.trim() }]);
           setStreamingText("");
           setStreaming(false);
         }
@@ -119,8 +121,7 @@ export default function AutoTeachPage() {
           setStreamingText(accumulated);
         },
         () => {
-          const clean = accumulated.replace(/<performance>[\s\S]*?<\/performance>/g, "").trim();
-          setMessages((prev) => [...prev, { role: "assistant", content: clean }]);
+          setMessages((prev) => [...prev, { role: "assistant", content: accumulated.trim() }]);
           setStreamingText("");
           setStreaming(false);
         }
@@ -200,7 +201,7 @@ export default function AutoTeachPage() {
               >
                 <div className="prose-tutor leading-relaxed">
                   <ReactMarkdown>
-                    {cleanMarkdown(streamingText.replace(/<performance>[\s\S]*?<\/performance>/g, ""))}
+                    {cleanMarkdown(streamingText)}
                   </ReactMarkdown>
                 </div>
               </div>
@@ -325,6 +326,36 @@ export default function AutoTeachPage() {
         <div className="animate-pulse text-ui-muted">Computing optimal study plan...</div>
       )}
 
+      {/* Prominent Seed button when plan is empty — visible without scrolling */}
+      {selectedSubject && !planLoading && !planError && (!plan || plan.teaching_plan.length === 0) && (
+        <Card className="mb-6 p-6 border-amber-500/40 bg-amber-500/5">
+          <p className="text-ui-primary font-medium mb-2">No study plan yet</p>
+          <p className="text-sm text-ui-muted mb-4">
+            {plan?.message ?? "The database needs to be seeded with subjects and topics. Click below to run the seed (safe to run anytime)."}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              setSeedError(null);
+              setSeeding(true);
+              try {
+                await runSeed();
+                await queryClient.invalidateQueries({ queryKey: ["teaching-plan"] });
+              } catch (e) {
+                setSeedError(e instanceof Error ? e.message : "Seed failed");
+              } finally {
+                setSeeding(false);
+              }
+            }}
+            disabled={seeding}
+            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {seeding ? "Seeding…" : "Seed database"}
+          </button>
+          {seedError && <p className="mt-2 text-red-400 text-sm">{seedError}</p>}
+        </Card>
+      )}
+
       {planError && (
         <Card className="text-center py-8 border-red-500/30 bg-red-500/5">
           <p className="text-red-400 font-medium mb-1">Couldn&apos;t load study plan</p>
@@ -336,7 +367,29 @@ export default function AutoTeachPage() {
 
       {plan && plan.teaching_plan.length === 0 && !planError && (
         <Card className="text-center py-8 text-ui-muted text-sm">
-          {plan.message ?? "No study topics found for this subject. The database may still be initializing — try refreshing in a moment."}
+          <p className="mb-4">
+            {plan.message ?? "No study topics found for this subject. The database may still be initializing — try refreshing in a moment."}
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              setSeedError(null);
+              setSeeding(true);
+              try {
+                await runSeed();
+                await queryClient.invalidateQueries({ queryKey: ["teaching-plan"] });
+              } catch (e) {
+                setSeedError(e instanceof Error ? e.message : "Seed failed");
+              } finally {
+                setSeeding(false);
+              }
+            }}
+            disabled={seeding}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {seeding ? "Seeding…" : "Seed database"}
+          </button>
+          {seedError && <p className="mt-2 text-red-400 text-sm">{seedError}</p>}
         </Card>
       )}
 

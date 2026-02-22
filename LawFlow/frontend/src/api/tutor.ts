@@ -62,15 +62,19 @@ export async function sendMessageStream(
 
     for (const line of lines) {
       if (line.startsWith("data: ")) {
-        const text = line.slice(6);
-        if (text === "[DONE]") {
+        const raw = line.slice(6);
+        if (raw === "[DONE]") {
           onDone();
           return;
         }
-        if (text.startsWith("[ERROR]")) {
-          throw new Error(text);
+        if (raw.startsWith("[ERROR]")) {
+          throw new Error(raw);
         }
-        onChunk(text);
+        try {
+          onChunk(JSON.parse(raw));
+        } catch {
+          onChunk(raw);
+        }
       }
     }
   }

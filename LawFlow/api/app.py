@@ -49,6 +49,13 @@ def create_app(static_dir: str | None = None) -> Flask:
     def health():
         return jsonify({"status": "ok", "app": "LawFlow"})
 
+    # Seed database on demand (subjects/topics); safe to call multiple times
+    @app.route("/api/seed", methods=["POST"])
+    def seed():
+        from api.services.subject_taxonomy import seed_subject_taxonomy
+        seed_subject_taxonomy()
+        return jsonify({"status": "ok", "message": "Subject and topic taxonomy seeded."})
+
     # Register blueprints
     from api.routes.documents import bp as documents_bp
     from api.routes.tutor import bp as tutor_bp
