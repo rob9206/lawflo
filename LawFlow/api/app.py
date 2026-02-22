@@ -93,6 +93,9 @@ def create_app(static_dir: str | None = None) -> Flask:
     return app
 
 
+# Module-level app instance for tooling (gunicorn, flask CLI, auto-detection).
+# The factory is still available via create_app() for testing or custom config.
+app = create_app()
+
 if __name__ == "__main__":
-    app = create_app()
     app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG)
