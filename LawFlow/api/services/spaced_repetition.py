@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 import anthropic
 
 from api.config import config
+from api.services.claude_client import get_claude_client
 from api.services.database import get_db
 from api.models.review import SpacedRepetitionCard
 from api.models.document import KnowledgeChunk
@@ -82,11 +83,7 @@ CONTENT:
 
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set. Add your Anthropic API key to the .env file.")
-    return anthropic.Anthropic(api_key=api_key)
+    return get_claude_client()
 
 
 def generate_cards_for_chunk(chunk_id: str) -> list[dict]:

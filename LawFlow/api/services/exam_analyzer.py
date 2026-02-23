@@ -13,6 +13,7 @@ import logging
 import anthropic
 
 from api.config import config
+from api.services.claude_client import get_claude_client
 from api.services.database import get_db
 from api.models.document import Document, KnowledgeChunk
 from api.models.exam_blueprint import ExamBlueprint, ExamTopicWeight
@@ -52,11 +53,7 @@ EXAM TEXT:
 
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set. Add your Anthropic API key to the .env file.")
-    return anthropic.Anthropic(api_key=api_key)
+    return get_claude_client()
 
 
 def analyze_exam(document_id: str) -> dict:
