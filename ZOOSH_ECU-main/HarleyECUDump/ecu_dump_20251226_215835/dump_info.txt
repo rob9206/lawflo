@@ -1,0 +1,13 @@
+Harley ECU Dump
+===============
+
+Date: 2025-12-26T21:59:08.281698
+Part Number: 
+Serial Number: 
+Calibration ID: 0x0000
+Checksum: 0x00000000
+
+Files:
+  config_low_000800.bin: 2,048 bytes
+  config_mid_740000.bin: 1,024 bytes
+  calibration_7D8000.bin: 163,840 bytes

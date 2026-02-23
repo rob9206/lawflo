@@ -1,0 +1,130 @@
+:root {
+  /* ── Page ────────────────────────────────────────── */
+  --page-bg: #F7F7F7;
+  --card-bg: #FFFFFF;
+  --surface-bg: #F0F0F0;
+
+  /* ── Text ────────────────────────────────────────── */
+  --text-primary: #4B4B4B;
+  --text-secondary: #777777;
+  --text-muted: #AFAFAF;
+  --text-inverse: #FFFFFF;
+
+  /* ── Borders ─────────────────────────────────────── */
+  --border: #E5E5E5;
+  --border-dark: #DADADA;
+  --border-focus: #1CB0F6;
+
+  /* ── Green (iguana) — Primary Actions ─────────────── */
+  --green: #58CC02;
+  --green-dark: #46A302;
+  --green-bg: #D7FFB8;
+  --green-bg-subtle: #EDFFD6;
+
+  /* ── Blue (macaw) — Info, Links, Active States ───── */
+  --blue: #1CB0F6;
+  --blue-dark: #1899D6;
+  --blue-bg: #DDF4FF;
+  --blue-bg-subtle: #EEF9FF;
+
+  /* ── Orange (fox) — Warnings, Caution ────────────── */
+  --orange: #FF9600;
+  --orange-dark: #E08600;
+  --orange-bg: #FFF1D6;
+  --orange-bg-subtle: #FFF8EB;
+
+  /* ── Red (cardinal) — Errors, Destructive ────────── */
+  --red: #FF4B4B;
+  --red-dark: #EA2B2B;
+  --red-bg: #FFDFE0;
+  --red-bg-subtle: #FFF0F0;
+
+  /* ── Gold (bee) — XP, Streaks, Rewards ───────────── */
+  --gold: #FFC800;
+  --gold-dark: #E5B400;
+  --gold-bg: #FFF5CC;
+  --gold-bg-subtle: #FFFAE6;
+
+  /* ── Navy (whale) — Hero Headers, Deep Cards ─────── */
+  --navy: #235390;
+  --navy-dark: #1A406E;
+  --navy-bg: #D0DEF0;
+  --navy-bg-subtle: #E8EFF8;
+
+  /* ── Purple — Mnemonics, Special ─────────────────── */
+  --purple: #CE82FF;
+  --purple-dark: #A855F7;
+  --purple-bg: #F3E5FF;
+
+  /* ── Shadows ─────────────────────────────────────── */
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,0.08);
+
+  /* ── Border Radius ───────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ── Spacing ─────────────────────────────────────── */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE — Duolingo-Inspired Navy-Teal Palette
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark {
+  /* ── Page ────────────────────────────────────────── */
+  --page-bg: #131F24;
+  --card-bg: #1B2B32;
+  --surface-bg: #233A44;
+
+  /* ── Text ────────────────────────────────────────── */
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0B4BA;
+  --text-muted: #5E7681;
+  --text-inverse: #131F24;
+
+  /* ── Borders ─────────────────────────────────────── */
+  --border: #37464F;
+  --border-dark: #2C3A42;
+  --border-focus: #1CB0F6;
+
+  /* ── Green — Primary Actions (hue unchanged) ─────── */
+  --green-bg: rgba(88, 204, 2, 0.15);
+  --green-bg-subtle: rgba(88, 204, 2, 0.08);
+
+  /* ── Blue — Info, Links (hue unchanged) ──────────── */
+  --blue-bg: rgba(28, 176, 246, 0.15);
+  --blue-bg-subtle: rgba(28, 176, 246, 0.08);
+
+  /* ── Orange — Warnings (hue unchanged) ───────────── */
+  --orange-bg: rgba(255, 150, 0, 0.15);
+  --orange-bg-subtle: rgba(255, 150, 0, 0.08);
+
+  /* ── Red — Errors (hue unchanged) ────────────────── */
+  --red-bg: rgba(255, 75, 75, 0.15);
+  --red-bg-subtle: rgba(255, 75, 75, 0.08);
+
+  /* ── Gold — XP, Rewards (hue unchanged) ──────────── */
+  --gold-bg: rgba(255, 200, 0, 0.15);
+  --gold-bg-subtle: rgba(255, 200, 0, 0.08);
+
+  /* ── Navy — Headers (hue unchanged) ──────────────── */
+  --navy-bg: rgba(35, 83, 144, 0.25);
+  --navy-bg-subtle: rgba(35, 83, 144, 0.12);
+
+  /* ── Purple — Special (hue unchanged) ────────────── */
+  --purple-bg: rgba(206, 130, 255, 0.15);
+
+  /* ── Shadows (stronger on dark) ──────────────────── */
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.4);
+}

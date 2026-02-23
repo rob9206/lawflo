@@ -230,7 +230,7 @@ def generate_teaching_plan(
             "mode": top.recommended_mode,
             "subject": subject,
             "topics": [top.topic],
-            "opening_message": _build_opening_message(top, has_exam_data),
+            "opening_message": _build_opening_message(top, has_exam_data, available_minutes),
         }
 
     return {
@@ -243,7 +243,11 @@ def generate_teaching_plan(
     }
 
 
-def _build_opening_message(target: TeachingTarget, has_exam_data: bool) -> str:
+def _build_opening_message(
+    target: TeachingTarget,
+    has_exam_data: bool,
+    available_minutes: int | None = None,
+) -> str:
     """Build the first message to send to the tutor on behalf of the student.
 
     This is what kicks off the auto-teach session — the system sends this
@@ -258,6 +262,17 @@ def _build_opening_message(target: TeachingTarget, has_exam_data: bool) -> str:
             f"This topic accounts for ~{target.exam_weight*100:.0f}% of my exam."
         )
 
+    if available_minutes:
+        parts.append(f"I have {available_minutes} minutes to study.")
+        if available_minutes <= 30:
+            parts.append("Keep it ultra-compressed — only the highest-yield material.")
+        elif available_minutes <= 60:
+            parts.append("Standard depth — cover the core rules, one case example, and key traps.")
+        elif available_minutes <= 90:
+            parts.append("I have extra time — include edge cases and competing arguments.")
+        else:
+            parts.append("Deep dive — give me full treatment with multiple cases, policy rationale, and exam strategy.")
+
     if target.mastery < 20:
         parts.append("I'm starting nearly from scratch — give me the fundamentals.")
     elif target.mastery < 50:
@@ -270,12 +285,17 @@ def _build_opening_message(target: TeachingTarget, has_exam_data: bool) -> str:
     return " ".join(parts)
 
 
-def get_next_topic(subject: str) -> dict | None:
+def get_next_topic(
+    subject: str,
+    available_minutes: int | None = None,
+) -> dict | None:
     """Quick helper: get just the single highest-priority topic to study next.
 
     Useful for a "What should I study right now?" button.
     """
-    plan = generate_teaching_plan(subject, max_topics=1)
+    plan = generate_teaching_plan(
+        subject, max_topics=1, available_minutes=available_minutes,
+    )
     if plan["teaching_plan"]:
         return {
             **plan["teaching_plan"][0],

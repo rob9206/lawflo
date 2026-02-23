@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 import anthropic
 
 from api.config import config
-from api.services.prompt_library import build_system_prompt, build_student_context, build_knowledge_context, build_exam_context
 from api.services.claude_client import get_claude_client
+from api.services.prompt_library import build_system_prompt, build_student_context, build_knowledge_context, build_exam_context, build_time_context
 from api.services.database import get_db
 from api.models.session import StudySession, SessionMessage
 from api.models.student import SubjectMastery, TopicMastery
@@ -71,11 +71,16 @@ def _clean_markdown(text: str) -> str:
     return '\n'.join(cleaned_lines)
 
 
-def _get_client() -> anthropic.Anthropic:
-    return get_claude_client()
+def _get_client(api_key_override: str | None = None) -> anthropic.Anthropic:
+    return get_claude_client(api_key_override)
 
 
-def create_session(mode: str, subject: str | None = None, topics: list[str] | None = None) -> dict:
+def create_session(
+    mode: str,
+    subject: str | None = None,
+    topics: list[str] | None = None,
+    available_minutes: int | None = None,
+) -> dict:
     """Create a new tutoring session."""
     with get_db() as db:
         session = StudySession(
@@ -83,6 +88,7 @@ def create_session(mode: str, subject: str | None = None, topics: list[str] | No
             tutor_mode=mode,
             subject=subject,
             topics=json.dumps(topics or []),
+            available_minutes=available_minutes,
         )
         db.add(session)
         db.flush()
@@ -142,13 +148,12 @@ def _get_knowledge_context(subject: str | None, topics: list[str] | None, query:
         if topics:
             q = q.filter(KnowledgeChunk.topic.in_(topics))
 
-        # Simple keyword matching for now — upgrade to FTS5 or semantic later
         if query:
             keywords = query.lower().split()
-            for kw in keywords[:5]:  # Limit to prevent overly narrow filters
+            for kw in keywords[:5]:
                 q = q.filter(KnowledgeChunk.content.ilike(f"%{kw}%"))
 
-        chunks = q.limit(6).all()
+        chunks = q.limit(8).all()
 
         if not chunks:
             return ""
@@ -160,6 +165,10 @@ def _get_knowledge_context(subject: str | None, topics: list[str] | None, query:
                 "content": c.content,
                 "filename": doc.filename if doc else "Unknown",
                 "chunk_index": c.chunk_index,
+                "summary": c.summary or "",
+                "content_type": c.content_type or "",
+                "case_name": c.case_name or "",
+                "difficulty": c.difficulty,
             })
 
         return build_knowledge_context(chunk_dicts)
@@ -180,7 +189,11 @@ def _get_exam_context(subject: str) -> str:
         return build_exam_context(blueprint.to_dict())
 
 
-def send_message(session_id: str, user_content: str):
+def send_message(
+    session_id: str,
+    user_content: str,
+    api_key_override: str | None = None,
+):
     """Send a user message and stream Claude's response.
 
     Yields text chunks for SSE streaming. Saves both messages to DB.
@@ -216,14 +229,16 @@ def send_message(session_id: str, user_content: str):
     mode = session.tutor_mode or "explain"
     subject = session.subject
     topics = json.loads(session.topics) if session.topics else None
+    avail_min = session.available_minutes
 
     student_ctx = _get_mastery_context(subject)
     knowledge_ctx = _get_knowledge_context(subject, topics, user_content)
     exam_ctx = _get_exam_context(subject) if subject else ""
-    system_prompt = build_system_prompt(mode, student_ctx, knowledge_ctx, exam_ctx)
+    time_ctx = build_time_context(avail_min)
+    system_prompt = build_system_prompt(mode, student_ctx, knowledge_ctx, exam_ctx, time_ctx)
 
     # Stream from Claude
-    client = _get_client()
+    client = _get_client(api_key_override)
     full_response = ""
 
     with client.messages.stream(

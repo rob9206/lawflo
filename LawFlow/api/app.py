@@ -1,6 +1,7 @@
 """LawFlow Flask application factory."""
 
 import logging
+import os
 from pathlib import Path
 
 from flask import Flask, jsonify, send_from_directory
@@ -35,8 +36,12 @@ def create_app(static_dir: str | None = None) -> Flask:
         print("\n*** WARNING: ANTHROPIC_API_KEY is not set in .env! ***")
         print("*** Document uploads will fail until you add it.   ***\n")
 
-    # CORS for frontend dev server
-    CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if extra_origins:
+        allowed_origins.extend(o.strip() for o in extra_origins.split(",") if o.strip())
+
+    CORS(app, origins=allowed_origins,
          expose_headers=["X-Session-Id", "X-Tutor-Mode", "X-Topic"])
 
     # Error handler
@@ -47,7 +52,14 @@ def create_app(static_dir: str | None = None) -> Flask:
     # Health check
     @app.route("/api/health")
     def health():
-        return jsonify({"status": "ok", "app": "LawFlow"})
+        return jsonify(
+            {
+                "status": "ok",
+                "app": "LawFlow",
+                "debug_app_marker": "DBG_APP_5002",
+                "app_file": __file__,
+            }
+        )
 
     # Seed database on demand (subjects/topics); safe to call multiple times
     @app.route("/api/seed", methods=["POST"])
@@ -103,9 +115,9 @@ def create_app(static_dir: str | None = None) -> Flask:
     return app
 
 
-# Module-level app instance for tooling (gunicorn, hosting auto-detection).
-# The create_app() factory is still available for testing or custom config.
-app = create_app()
+# Auto-detect built frontend so gunicorn serves the SPA in production.
+_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+app = create_app(static_dir=str(_dist) if _dist.is_dir() else None)
 
 if __name__ == "__main__":
     # Reloader disabled: module-level create_app() imports blueprints and
