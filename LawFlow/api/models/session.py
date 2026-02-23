@@ -29,6 +29,7 @@ class StudySession(Base):
     ended_at = Column(DateTime)
     duration_minutes = Column(Float)
     messages_count = Column(Integer, default=0)
+    available_minutes = Column(Integer)  # student's time budget for this session
     performance_score = Column(Float)  # 0-100
     notes = Column(Text)
     created_at = Column(DateTime, default=_now)
@@ -47,6 +48,7 @@ class StudySession(Base):
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
             "duration_minutes": self.duration_minutes,
             "messages_count": self.messages_count,
+            "available_minutes": self.available_minutes,
             "performance_score": self.performance_score,
             "notes": self.notes,
         }

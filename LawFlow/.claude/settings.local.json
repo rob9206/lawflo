@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh api:*)",
+      "Bash(python3:*)",
+      "Bash(netstat:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(powershell -command \"Stop-Process -Id 87004 -Force\")"
+    ]
+  }
+}

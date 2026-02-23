@@ -26,6 +26,51 @@ FORMATTING RULES (CRITICAL - FOLLOW EXACTLY):
 - Use numbered lists (1. 2. 3.) for sequential steps or elements
 - Separate distinct concepts with blank lines and headers
 
+PRACTICE QUESTIONS:
+After your lesson content, emit multiple-choice practice questions wrapped in <practice_questions> tags.
+The NUMBER of questions depends on the student's available study time (see TIME BUDGET section if present):
+- Short sessions (30 min or less): 2 rapid-fire recall questions
+- Standard sessions (60 min): 3 application-level questions
+- Extended sessions (90 min): 4 questions including at least one fact-pattern scenario
+- Deep sessions (120+ min): 4-5 questions simulating exam conditions with complex fact patterns
+If no time budget is specified, default to 3 questions.
+
+These questions MUST be tailored to:
+- The specific topic you just taught
+- The student's current mastery level (easier for beginners, harder for advanced)
+- Common exam traps and misconceptions for this topic
+- The teaching mode (e.g. fact-pattern based for IRAC mode, conceptual for explain mode)
+- The professor's testing style and grading patterns (if exam intelligence is provided)
+- Content from the student's uploaded class materials (if provided in the knowledge context)
+
+Format as a JSON array inside the tags:
+<practice_questions>
+[
+  {
+    "stem": "A clear, exam-style question about the topic just taught",
+    "choices": [
+      {"id": "A", "text": "A plausible wrong answer"},
+      {"id": "B", "text": "The correct answer"},
+      {"id": "C", "text": "A common misconception"},
+      {"id": "D", "text": "An answer that confuses a related concept"}
+    ],
+    "correct": "B",
+    "explanation": "Why B is correct and why the others are wrong, referencing the lesson content"
+  }
+]
+</practice_questions>
+
+QUESTION QUALITY RULES:
+- Each question must test a DIFFERENT aspect of the topic (rule knowledge, application, traps, distinctions)
+- Wrong answers must be plausible — they should represent real student mistakes, not obviously silly options
+- For low-mastery students: test basic rule recall and element identification
+- For moderate-mastery students: test application to fact patterns and distinguishing similar concepts
+- For high-mastery students: test edge cases, exceptions, and exam-specific traps
+- If professor patterns or exam data are available, model questions after the professor's known testing style
+- If uploaded class materials are available, reference specific cases, rules, or examples from those materials
+- Explanations should teach — reference specific rules, cases, or elements from the lesson
+- Randomize the position of the correct answer (don't always make it B)
+
 PERFORMANCE TRACKING:
 After EVERY substantive response, emit a JSON block wrapped in <performance> tags:
 <performance>
@@ -164,14 +209,37 @@ def build_knowledge_context(chunks: list[dict]) -> str:
     if not chunks:
         return ""
 
-    lines = ["RELEVANT MATERIALS FROM YOUR UPLOADED DOCUMENTS:"]
+    lines = [
+        "RELEVANT MATERIALS FROM THE STUDENT'S UPLOADED CLASS DOCUMENTS:",
+        "(Use these materials to ground your teaching in what the student's professor actually covers.)",
+    ]
     for chunk in chunks:
         source = chunk.get("filename", "Unknown")
         idx = chunk.get("chunk_index", "?")
-        lines.append(f"\n[Source: {source}, Section {idx}]")
+        content_type = chunk.get("content_type", "")
+        case_name = chunk.get("case_name", "")
+        summary = chunk.get("summary", "")
+        difficulty = chunk.get("difficulty")
+
+        header_parts = [f"Source: {source}, Section {idx}"]
+        if content_type:
+            header_parts.append(f"Type: {content_type}")
+        if case_name:
+            header_parts.append(f"Case: {case_name}")
+        if difficulty is not None:
+            header_parts.append(f"Difficulty: {difficulty}/100")
+
+        lines.append(f"\n[{', '.join(header_parts)}]")
+        if summary:
+            lines.append(f"Summary: {summary}")
         lines.append(chunk["content"])
         lines.append("---")
 
+    lines.append(
+        "\nIMPORTANT: Prioritize teaching from these uploaded materials. "
+        "They reflect what the student's professor emphasizes. "
+        "Reference specific cases, rules, and examples from these documents when possible."
+    )
     return "\n".join(lines)
 
 
@@ -180,26 +248,81 @@ def build_exam_context(exam_data: dict | None) -> str:
     if not exam_data:
         return ""
 
-    lines = ["EXAM INTELLIGENCE (from analysis of past exams):"]
+    lines = ["EXAM INTELLIGENCE (from analysis of this student's past exams):"]
 
+    if exam_data.get("exam_title"):
+        lines.append(f"Exam: {exam_data['exam_title']}")
     if exam_data.get("exam_format"):
         lines.append(f"Exam format: {exam_data['exam_format']}")
     if exam_data.get("time_limit_minutes"):
-        lines.append(f"Time limit: {exam_data['time_limit_minutes']} minutes")
+        lines.append(f"Exam time limit: {exam_data['time_limit_minutes']} minutes")
+    if exam_data.get("total_questions"):
+        lines.append(f"Total questions: {exam_data['total_questions']}")
     if exam_data.get("professor_patterns"):
-        lines.append(f"Professor patterns: {exam_data['professor_patterns']}")
+        lines.append(f"\nPROFESSOR'S GRADING PATTERNS: {exam_data['professor_patterns']}")
     if exam_data.get("high_yield_summary"):
         lines.append(f"\nHIGH-YIELD TOPICS: {exam_data['high_yield_summary']}")
     if exam_data.get("topics_tested"):
         lines.append("\nTopic weights on exam:")
         for t in exam_data["topics_tested"]:
             weight_pct = t.get("weight", 0) * 100
-            lines.append(f"  - {t['topic']}: {weight_pct:.0f}% of exam ({t.get('question_format', '?')})")
+            difficulty = t.get("difficulty", 0)
+            fmt = t.get("question_format", "?")
+            lines.append(f"  - {t['topic']}: {weight_pct:.0f}% of exam, format: {fmt}, difficulty: {difficulty}/100")
             if t.get("notes"):
-                lines.append(f"    Testing angle: {t['notes']}")
+                lines.append(f"    Professor's testing angle: {t['notes']}")
 
-    lines.append("\nTailor your teaching to emphasize what THIS professor tests and HOW they test it.")
+    lines.append(
+        "\nCRITICAL: Tailor ALL teaching and practice questions to match this professor's "
+        "grading patterns, question formats, and testing angles. The student needs to "
+        "perform well on THIS specific exam, not a generic one."
+    )
     return "\n".join(lines)
+
+
+def build_time_context(available_minutes: int | None) -> str:
+    """Build time-awareness instructions based on the student's study budget."""
+    if not available_minutes:
+        return ""
+
+    if available_minutes <= 30:
+        pacing = (
+            "Ultra-compressed session. The student has very limited time.\n"
+            "- Cover ONLY the highest-yield material for exam performance\n"
+            "- One-sentence rule statements, minimal case discussion\n"
+            "- Skip policy rationale and historical context entirely\n"
+            "- Focus on the single most common exam trap\n"
+            "- Practice questions should be rapid-fire recall (2 questions max)"
+        )
+    elif available_minutes <= 60:
+        pacing = (
+            "Standard depth session.\n"
+            "- Cover core rules with key elements as a numbered list\n"
+            "- One memorable case example with a one-sentence holding\n"
+            "- Include the most common exam traps (2-3)\n"
+            "- Provide a mnemonic or analogy if one exists\n"
+            "- Practice questions should test application to facts (3 questions)"
+        )
+    elif available_minutes <= 90:
+        pacing = (
+            "Extended session — the student has time for deeper coverage.\n"
+            "- Full rule treatment with all required elements\n"
+            "- Multiple case examples showing different applications\n"
+            "- Include edge cases and competing arguments\n"
+            "- Discuss how this topic intersects with related topics\n"
+            "- Practice questions should include at least one fact-pattern scenario (4 questions)"
+        )
+    else:
+        pacing = (
+            "Deep dive session — comprehensive treatment.\n"
+            "- Full doctrinal treatment with policy rationale\n"
+            "- Multiple cases showing the evolution of the rule\n"
+            "- Detailed edge cases, exceptions, and minority rules\n"
+            "- Exam strategy specific to this topic\n"
+            "- Practice questions should simulate exam conditions with complex fact patterns (4-5 questions)"
+        )
+
+    return f"TIME BUDGET: {available_minutes} minutes available.\n\n{pacing}"
 
 
 def build_system_prompt(
@@ -207,12 +330,16 @@ def build_system_prompt(
     student_context: str = "",
     knowledge_context: str = "",
     exam_context: str = "",
+    time_context: str = "",
 ) -> str:
     """Assemble the full system prompt from layers."""
     parts = [BASE_IDENTITY]
 
     mode_prompt = MODES.get(mode, MODE_EXPLAIN)
     parts.append(mode_prompt)
+
+    if time_context:
+        parts.append(time_context)
 
     if student_context:
         parts.append(student_context)

@@ -1,0 +1,16 @@
+# ECU Tool Requirements
+
+# Core cryptography
+pycryptodome>=3.19.0
+
+# CAN bus communication (optional - for real hardware)
+python-can>=4.3.0
+
+# Serial communication (optional - for USB-CAN adapters)
+pyserial>=3.5
+
+# Additional CAN interfaces (optional)
+# python-can[pcan]    # PCAN support
+# python-can[kvaser]  # Kvaser support
+# python-can[vector]  # Vector support
+

@@ -1,0 +1,106 @@
+================================================================================
+                    DYNOJET POWER CORE - CAPTURED ENCRYPTION KEYS
+                              Extracted: December 2024
+================================================================================
+
+SUMMARY
+-------
+Two Blowfish encryption keys discovered via runtime analysis of Power Core
+communicating with PowerVision and Harley-Davidson ECU.
+
+================================================================================
+
+KEY #1: DEFINITION/METADATA KEY
+-------------------------------
+Purpose:    ECU definition files, metadata, headers
+Data Size:  ~16 KB (16,528 bytes observed)
+Algorithm:  Blowfish (56 bytes = 448 bits)
+
+ASCII:
+hI8I2TlMgp3OteXkMO0C39sPdl6VNCq4DmSIxYZcUcBOgKT8eKe4zv0I
+
+HEX:
+68 49 38 49 32 54 6c 4d 67 70 33 4f 74 65 58 6b
+4d 4f 30 43 33 39 73 50 64 6c 36 56 4e 43 71 34
+44 6d 53 49 78 59 5a 63 55 63 42 4f 67 4b 54 38
+65 4b 65 34 7a 76 30 49
+
+Python:
+KEY_DEFINITIONS = b"hI8I2TlMgp3OteXkMO0C39sPdl6VNCq4DmSIxYZcUcBOgKT8eKe4zv0I"
+
+================================================================================
+
+KEY #2: ECU CALIBRATION KEY
+---------------------------
+Purpose:    ECU calibration data, tune files, flash data
+Data Size:  ~168 KB (168,448 bytes) and ~68 KB (68,096 bytes) observed
+Algorithm:  Blowfish (56 bytes = 448 bits)
+
+ASCII:
+R8SJzQ0c2IoKSIVa1YernejU9X5oKQRpPOt2ClU6HiZAk7oEeIHS9orR
+
+HEX:
+52 38 53 4a 7a 51 30 63 32 49 6f 4b 53 49 56 61
+31 59 65 72 6e 65 6a 55 39 58 35 6f 4b 51 52 70
+50 4f 74 32 43 6c 55 36 48 69 5a 41 6b 37 6f 45
+65 49 48 53 39 6f 72 52
+
+Python:
+KEY_CALIBRATION = b"R8SJzQ0c2IoKSIVa1YernejU9X5oKQRpPOt2ClU6HiZAk7oEeIHS9orR"
+
+================================================================================
+
+PYTHON USAGE EXAMPLE
+--------------------
+
+from Crypto.Cipher import Blowfish
+
+# Keys
+KEY_DEFINITIONS = b"hI8I2TlMgp3OteXkMO0C39sPdl6VNCq4DmSIxYZcUcBOgKT8eKe4zv0I"
+KEY_CALIBRATION = b"R8SJzQ0c2IoKSIVa1YernejU9X5oKQRpPOt2ClU6HiZAk7oEeIHS9orR"
+
+def decrypt_definition(data):
+    cipher = Blowfish.new(KEY_DEFINITIONS, Blowfish.MODE_ECB)
+    return cipher.decrypt(data)
+
+def decrypt_calibration(data):
+    cipher = Blowfish.new(KEY_CALIBRATION, Blowfish.MODE_ECB)
+    return cipher.decrypt(data)
+
+def encrypt_calibration(data):
+    cipher = Blowfish.new(KEY_CALIBRATION, Blowfish.MODE_ECB)
+    return cipher.encrypt(data)
+
+================================================================================
+
+EXTRACTION METHOD
+-----------------
+Tool:       Frida 17.5.1
+Target:     Power Core.exe (PID: 26908)
+DLL:        BLOWFISHLIB.dll
+Functions:  Encrypt(), Decrypt()
+Parameters: Decrypt(data*, dataLen, key*, keyLen)
+
+Hardware:   PowerVision (USB VID:18E1 PID:0020)
+ECU:        Harley-Davidson Delphi ECU
+Connection: Power Vision Update Mode (COM4)
+
+================================================================================
+
+NOTES
+-----
+- Both keys are 56 bytes (448 bits) - maximum Blowfish key size
+- Keys are ASCII printable characters (Base64-like encoding)
+- Key #1 appears to be for smaller metadata/definition data
+- Key #2 appears to be for larger ECU calibration/tune data
+- Same keys observed across multiple operations
+
+================================================================================
+
+LEGAL DISCLAIMER
+----------------
+These keys were extracted for educational and research purposes.
+Use responsibly and in compliance with applicable laws and licenses.
+
+================================================================================
+

@@ -1,0 +1,14 @@
+# Harley ECU Tool Dependencies
+
+# CAN Bus Communication
+python-can>=4.0.0
+
+# PCAN Driver (Windows)
+# Note: Requires PCAN Basic API from Peak Systems
+# Download from: https://www.peak-system.com/PCAN-Basic.239.0.html
+
+# Optional: For development
+# pytest>=7.0.0
+# black>=22.0.0
+# pylint>=2.0.0
+

@@ -510,9 +510,13 @@ def complete_exam(assessment_id: str) -> dict:
         assessment.score = round(overall, 1)
         assessment.completed_at = datetime.now(timezone.utc)
 
-        # Compute time taken
+        # Compute time taken — normalize created_at to UTC-aware since SQLite
+        # returns offset-naive datetimes while completed_at is offset-aware
         if assessment.created_at:
-            delta = (assessment.completed_at - assessment.created_at).total_seconds() / 60
+            created = assessment.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            delta = (assessment.completed_at - created).total_seconds() / 60
             assessment.time_taken_minutes = round(delta, 1)
 
         # Generate per-topic breakdown

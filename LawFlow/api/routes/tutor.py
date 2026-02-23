@@ -1,10 +1,42 @@
 """AI tutor session routes with SSE streaming."""
 
+import json
+import os
+import re
+import time
+
 from flask import Blueprint, request, jsonify, Response
 
 from api.errors import ValidationError, NotFoundError
 from api.services import tutor_engine
 from api.services.prompt_library import MODES
+
+_PERF_TAG_RE = re.compile(r"<performance>[\s\S]*?</performance>")
+_DEBUG_LOG_PATH = r"c:\Dev\LawFlow\.claude\worktrees\charming-dewdney\.cursor\debug.log"
+
+
+def _debug_log(hypothesis_id: str, message: str, data: dict):
+    # #region agent log
+    try:
+        os.makedirs(os.path.dirname(_DEBUG_LOG_PATH), exist_ok=True)
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "id": f"log_{int(time.time() * 1000)}_tutor_route",
+                        "timestamp": int(time.time() * 1000),
+                        "runId": "pre-fix",
+                        "hypothesisId": hypothesis_id,
+                        "location": "api/routes/tutor.py:get_session",
+                        "message": message,
+                        "data": data,
+                    }
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+    # #endregion
 
 bp = Blueprint("tutor", __name__, url_prefix="/api/tutor")
 
@@ -45,9 +77,39 @@ def create_session():
 @bp.route("/session/<session_id>", methods=["GET"])
 def get_session(session_id: str):
     """Get session details with message history."""
+    # #region agent log
+    _debug_log(
+        "H10",
+        "Tutor session fetch requested",
+        {
+            "session_id_len": len(session_id),
+            "session_id_prefix": session_id[:8],
+        },
+    )
+    # #endregion
     session = tutor_engine.get_session(session_id)
     if not session:
+        # #region agent log
+        _debug_log(
+            "H10",
+            "Tutor session not found",
+            {
+                "session_id_len": len(session_id),
+                "session_id_prefix": session_id[:8],
+            },
+        )
+        # #endregion
         raise NotFoundError("Session not found")
+    # #region agent log
+    _debug_log(
+        "H10",
+        "Tutor session found",
+        {
+            "session_id_prefix": session_id[:8],
+            "messages_count": len(session.get("messages", [])),
+        },
+    )
+    # #endregion
     return jsonify(session)
 
 
@@ -63,11 +125,31 @@ def send_message():
 
     if not session_id or not content:
         raise ValidationError("session_id and content are required")
+    header_key = request.headers.get("X-Anthropic-Api-Key", "")
 
     def generate():
+        perf_buf = ""
         try:
-            for chunk in tutor_engine.send_message(session_id, content):
-                yield f"data: {chunk}\n\n"
+            for chunk in tutor_engine.send_message(
+                session_id,
+                content,
+                api_key_override=header_key,
+            ):
+                text = perf_buf + chunk
+                perf_buf = ""
+
+                perf_start = text.find("<performance")
+                if perf_start != -1:
+                    perf_end = text.find("</performance>")
+                    if perf_end != -1:
+                        text = text[:perf_start] + text[perf_end + len("</performance>"):]
+                    else:
+                        perf_buf = text[perf_start:]
+                        text = text[:perf_start]
+
+                text = _PERF_TAG_RE.sub("", text)
+                if text:
+                    yield f"data: {json.dumps(text)}\n\n"
             yield "data: [DONE]\n\n"
         except ValueError as e:
             yield f"data: [ERROR] {str(e)}\n\n"
