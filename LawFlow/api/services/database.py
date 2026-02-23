@@ -1,14 +1,16 @@
 """Database connection and session management."""
 
+import logging
 import os
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from api.config import config
 from api.models.base import Base
 
+logger = logging.getLogger(__name__)
 
 # Ensure data directory exists
 os.makedirs("data", exist_ok=True)
@@ -46,9 +48,34 @@ def get_db() -> Session:
         session.close()
 
 
+def _migrate_missing_columns():
+    """Add any columns defined in models but missing from the SQLite database.
+
+    SQLAlchemy's create_all only creates missing *tables*, not missing columns
+    on existing tables. This lightweight migration covers schema drift for
+    SQLite (which supports ADD COLUMN but not DROP/ALTER).
+    """
+    if "sqlite" not in config.DATABASE_URL:
+        return
+
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table_name, table in Base.metadata.tables.items():
+            if not insp.has_table(table_name):
+                continue
+            existing = {c["name"] for c in insp.get_columns(table_name)}
+            for col in table.columns:
+                if col.name not in existing:
+                    col_type = col.type.compile(engine.dialect)
+                    stmt = f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"
+                    logger.info("Migrating: %s", stmt)
+                    conn.execute(text(stmt))
+
+
 def init_database():
-    """Create all tables."""
+    """Create all tables and migrate any missing columns."""
     Base.metadata.create_all(bind=engine)
+    _migrate_missing_columns()
     print("Database initialized successfully.")
 
 

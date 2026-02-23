@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import anthropic
 
 from api.config import config
+from api.services.anthropic_client import create_anthropic_client
 from api.services.database import get_db
 from api.services.auto_teach import compute_priority
 from api.services.exam_analyzer import get_aggregated_topic_weights, get_exam_blueprints
@@ -169,11 +170,7 @@ Respond with ONLY a JSON object (no markdown fencing):
 # ── Service Functions ───────────────────────────────────────────────────────
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-    return anthropic.Anthropic(api_key=api_key)
+    return create_anthropic_client()
 
 
 def generate_exam(
@@ -513,9 +510,13 @@ def complete_exam(assessment_id: str) -> dict:
         assessment.score = round(overall, 1)
         assessment.completed_at = datetime.now(timezone.utc)
 
-        # Compute time taken
+        # Compute time taken — normalize created_at to UTC-aware since SQLite
+        # returns offset-naive datetimes while completed_at is offset-aware
         if assessment.created_at:
-            delta = (assessment.completed_at - assessment.created_at).total_seconds() / 60
+            created = assessment.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            delta = (assessment.completed_at - created).total_seconds() / 60
             assessment.time_taken_minutes = round(delta, 1)
 
         # Generate per-topic breakdown
