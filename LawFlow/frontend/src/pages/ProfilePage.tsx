@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { User, BookOpen, Target, Clock, GraduationCap, FileText, AlertTriangle, RotateCcw, Trash2, Key, Eye, EyeOff, CheckCircle, Settings } from "lucide-react";
-import { getProfileStats, getApiKeys, saveApiKeys, resetProgress, resetAll } from "@/api/profile";
+import { User, BookOpen, Target, Clock, GraduationCap, FileText, AlertTriangle, RotateCcw, Trash2, Key, Eye, EyeOff, CheckCircle, Settings, Download, Upload } from "lucide-react";
+import { getProfileStats, getApiKeys, saveApiKeys, resetProgress, resetAll, exportData, importData } from "@/api/profile";
 import { clearApiKey, getStoredApiKey, looksLikeAnthropicKey, maskApiKey, saveApiKey } from "@/lib/apiKey";
 import Card from "@/components/ui/Card";
 import StatCard from "@/components/ui/StatCard";
@@ -243,6 +243,9 @@ export default function ProfilePage() {
 
       {/* API Key Settings */}
       <ApiKeySettings />
+
+      {/* Data Sync */}
+      <DataSync />
 
       {/* Danger Zone */}
       <div
@@ -508,6 +511,115 @@ function ApiKeySettings() {
         >
           console.anthropic.com
         </a>
+      </p>
+    </Card>
+  );
+}
+
+
+
+// ── Data Sync Component ─────────────────────────────────────────────────────
+
+function DataSync() {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleExport = async () => {
+    setExporting(true);
+    setMessage(null);
+    try {
+      await exportData();
+      setMessage({ type: "success", text: "Backup downloaded successfully." });
+    } catch {
+      setMessage({ type: "error", text: "Export failed. Please try again." });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setMessage(null);
+    try {
+      const result = await importData(file);
+      const total = Object.values(result.imported).reduce((a, b) => a + b, 0);
+      await queryClient.invalidateQueries({ queryKey: ["profile-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["progress"] });
+      await queryClient.invalidateQueries({ queryKey: ["rewards"] });
+      await queryClient.invalidateQueries({ queryKey: ["flashcards"] });
+      setMessage({ type: "success", text: `Import complete — ${total} new records restored.` });
+    } catch {
+      setMessage({ type: "error", text: "Import failed. Make sure the file is a valid LawFlow backup." });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-4">
+        <Download size={20} className="text-cyan-400" />
+        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+          Data Sync
+        </h3>
+      </div>
+
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Back up your study progress to a JSON file, or restore it on another device / remote deployment.
+      </p>
+
+      {message && (
+        <div
+          className="p-3 rounded-lg border text-sm mb-4"
+          style={{
+            backgroundColor: message.type === "error" ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+            borderColor: message.type === "error" ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)",
+            color: message.type === "error" ? "#ef4444" : "#22c55e",
+          }}
+        >
+          {message.text}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: "#0891b2" }}
+        >
+          <Download size={16} />
+          {exporting ? "Exporting…" : "Export Backup"}
+        </button>
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ backgroundColor: "#7c3aed" }}
+        >
+          <Upload size={16} />
+          {importing ? "Importing…" : "Import Backup"}
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={handleImport}
+        />
+      </div>
+
+      <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
+        Export saves all mastery data, sessions, flashcards, assessments, and study plans.
+        Importing merges records — existing data is preserved.
       </p>
     </Card>
   );
