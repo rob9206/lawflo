@@ -1,0 +1,12 @@
+**/.git
+**/.env
+**/__pycache__
+**/node_modules
+**/dist
+**/.venv
+**/venv
+**/.DS_Store
+**/.cursor
+**/.clow
+*.md
+*.bat

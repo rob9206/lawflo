@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { User, BookOpen, Target, Clock, GraduationCap, FileText, CreditCard, AlertTriangle, RotateCcw, Trash2 } from "lucide-react";
-import { getProfileStats, resetProgress, resetAll } from "@/api/profile";
+import { User, BookOpen, Target, Clock, GraduationCap, FileText, AlertTriangle, RotateCcw, Trash2, Key, Eye, EyeOff, CheckCircle, Settings } from "lucide-react";
+import { getProfileStats, getApiKeys, saveApiKeys, resetProgress, resetAll } from "@/api/profile";
 import Card from "@/components/ui/Card";
 import StatCard from "@/components/ui/StatCard";
 import PageHeader from "@/components/ui/PageHeader";
@@ -125,6 +125,9 @@ export default function ProfilePage() {
           color="text-cyan-400"
         />
       </div>
+
+      {/* API Key Settings */}
+      <ApiKeySettings />
 
       {/* Danger Zone */}
       <Card>
@@ -257,5 +260,144 @@ export default function ProfilePage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+// ── API Key Settings Component ──────────────────────────────────────────────
+
+function ApiKeySettings() {
+  const queryClient = useQueryClient();
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const { data: keyStatus } = useQuery({
+    queryKey: ["api-keys"],
+    queryFn: getApiKeys,
+  });
+
+  const handleSave = async () => {
+    if (!anthropicKey.trim()) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await saveApiKeys({ anthropic_key: anthropicKey.trim() });
+      setAnthropicKey("");
+      setMessage({ type: "success", text: "API key saved! AI features are now active." });
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+    } catch {
+      setMessage({ type: "error", text: "Failed to save API key. Please try again." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const configured = keyStatus?.anthropic?.configured ?? false;
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3 mb-4">
+        <Settings size={20} className="text-indigo-400" />
+        <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+          API Configuration
+        </h3>
+        {configured && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+            <CheckCircle size={14} />
+            Connected
+          </span>
+        )}
+      </div>
+
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        LawFlow uses Claude AI for document processing, tutoring, exam generation, and study plans.
+        Enter your Anthropic API key to enable all features.
+      </p>
+
+      {message && (
+        <div
+          className="p-3 rounded-lg border text-sm mb-4"
+          style={{
+            backgroundColor: message.type === "error" ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+            borderColor: message.type === "error" ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)",
+            color: message.type === "error" ? "#ef4444" : "#22c55e",
+          }}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Current key status */}
+      {configured && keyStatus?.anthropic?.masked && (
+        <div
+          className="flex items-center gap-3 p-3 rounded-lg mb-4"
+          style={{ backgroundColor: "var(--bg-muted)" }}
+        >
+          <Key size={16} className="text-ui-muted shrink-0" />
+          <span className="text-sm font-mono text-ui-muted">{keyStatus.anthropic.masked}</span>
+          <span className="text-xs text-ui-muted ml-auto">
+            Model: {keyStatus.anthropic.model}
+          </span>
+        </div>
+      )}
+
+      {!configured && (
+        <div
+          className="flex items-center gap-3 p-3 rounded-lg border mb-4"
+          style={{
+            backgroundColor: "rgba(245,158,11,0.08)",
+            borderColor: "rgba(245,158,11,0.3)",
+          }}
+        >
+          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          <span className="text-sm text-amber-400">
+            No API key configured — AI features are disabled.
+          </span>
+        </div>
+      )}
+
+      {/* Key input */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <input
+            type={showKey ? "text" : "password"}
+            value={anthropicKey}
+            onChange={(e) => setAnthropicKey(e.target.value)}
+            placeholder={configured ? "Enter new key to replace…" : "sk-ant-…"}
+            className="input-base w-full rounded-lg px-3 py-2.5 pr-10 text-sm font-mono"
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey(!showKey)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ui-muted hover:text-ui-primary transition-colors"
+          >
+            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={!anthropicKey.trim() || saving}
+          className="btn-primary px-5 py-2.5 text-sm disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Key"}
+        </button>
+      </div>
+
+      <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
+        Your key is stored locally in the <code className="px-1 py-0.5 rounded" style={{ backgroundColor: "var(--bg-muted)" }}>.env</code> file and never leaves your machine.
+        Get a key at{" "}
+        <a
+          href="https://console.anthropic.com/settings/keys"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-400 underline underline-offset-2"
+        >
+          console.anthropic.com
+        </a>
+      </p>
+    </Card>
   );
 }

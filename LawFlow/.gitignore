@@ -22,6 +22,7 @@ installer/output/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 

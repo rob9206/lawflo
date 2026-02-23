@@ -11,8 +11,28 @@ export interface ProfileStats {
   total_flashcards: number;
 }
 
+export interface ApiKeyStatus {
+  anthropic: {
+    configured: boolean;
+    masked: string;
+    model: string;
+  };
+}
+
 export async function getProfileStats(): Promise<ProfileStats> {
   const { data } = await api.get("/profile/stats");
+  return data;
+}
+
+export async function getApiKeys(): Promise<ApiKeyStatus> {
+  const { data } = await api.get("/profile/api-keys");
+  return data;
+}
+
+export async function saveApiKeys(
+  payload: { anthropic_key?: string; model?: string }
+): Promise<{ status: string; updated: string[] }> {
+  const { data } = await api.post("/profile/api-keys", payload);
   return data;
 }
 

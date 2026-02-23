@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import anthropic
 
 from api.config import config
+from api.services.claude_client import get_claude_client
 from api.services.database import get_db
 from api.services.auto_teach import compute_priority
 from api.services.exam_analyzer import get_aggregated_topic_weights, get_exam_blueprints
@@ -169,11 +170,7 @@ Respond with ONLY a JSON object (no markdown fencing):
 # ── Service Functions ───────────────────────────────────────────────────────
 
 def _get_client() -> anthropic.Anthropic:
-    import os
-    api_key = config.ANTHROPIC_API_KEY or os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set.")
-    return anthropic.Anthropic(api_key=api_key)
+    return get_claude_client()
 
 
 def generate_exam(
@@ -543,7 +540,7 @@ def complete_exam(assessment_id: str) -> dict:
         db.flush()
 
         # Update mastery scores based on exam performance
-        _update_mastery_from_exam(db, assessment.subject, topic_scores)
+        _update_mastery_from_exam(assessment.subject, topic_scores, db)
 
         result = assessment.to_dict()
         result["questions"] = [q.to_dict() for q in questions]
@@ -565,12 +562,16 @@ def complete_exam(assessment_id: str) -> dict:
     return result
 
 
-def _update_mastery_from_exam(db, subject: str, topic_scores: dict[str, list[float]]):
+def _update_mastery_from_exam(subject: str, topic_scores: dict[str, list[float]], db):
     """Update mastery scores based on exam performance.
 
     Exam results are a strong signal — a 90% score on an exam question
     is more reliable than a single flashcard review. We weight exam
     performance more heavily in mastery updates.
+
+    Accepts an existing db session to avoid nested transactions (SQLite
+    only allows one writer at a time, so opening a second session while
+    the caller's transaction is still open causes a "database is locked" 500).
     """
     for topic_name, scores in topic_scores.items():
         avg_score = sum(scores) / len(scores)
