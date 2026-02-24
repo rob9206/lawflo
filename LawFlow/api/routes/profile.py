@@ -7,7 +7,8 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from api.config import config
-from api.services.database import get_db, reset_database
+from api.middleware.auth import get_current_user, get_current_user_id, login_required
+from api.services.database import get_db
 from api.models.student import SubjectMastery, TopicMastery
 from api.models.session import StudySession, SessionMessage
 from api.models.document import Document
@@ -15,24 +16,36 @@ from api.models.assessment import Assessment, AssessmentQuestion
 from api.models.study_plan import StudyPlan, PlanTask
 from api.models.review import SpacedRepetitionCard
 from api.models.exam_blueprint import ExamBlueprint, ExamTopicWeight
+from api.models.rewards import PointLedger, Achievement, RewardsProfile
+from api.models.user import User
+from api.services.subject_taxonomy import seed_subject_taxonomy
+from api.services.achievement_definitions import seed_achievements
 
 bp = Blueprint("profile", __name__, url_prefix="/api/profile")
+
+
+@bp.before_request
+@login_required
+def require_auth():
+    return None
 
 
 @bp.route("/stats", methods=["GET"])
 def profile_stats():
     """Aggregate stats for the profile page."""
+    user_id = get_current_user_id()
     with get_db() as db:
         # Count records across all tables
-        total_subjects = db.query(SubjectMastery).count()
-        total_topics = db.query(TopicMastery).count()
-        total_sessions = db.query(StudySession).count()
-        total_assessments = db.query(Assessment).count()
-        total_documents = db.query(Document).count()
-        total_flashcards = db.query(SpacedRepetitionCard).count()
+        total_subjects = db.query(SubjectMastery).filter_by(user_id=user_id).count()
+        total_topics = db.query(TopicMastery).filter_by(user_id=user_id).count()
+        total_sessions = db.query(StudySession).filter_by(user_id=user_id).count()
+        total_assessments = db.query(Assessment).filter_by(user_id=user_id).count()
+        total_documents = db.query(Document).filter_by(user_id=user_id).count()
+        total_flashcards = db.query(SpacedRepetitionCard).filter_by(user_id=user_id).count()
+        user = db.query(User).filter_by(id=user_id).first()
         
         # Calculate overall mastery and study hours
-        subjects = db.query(SubjectMastery).all()
+        subjects = db.query(SubjectMastery).filter_by(user_id=user_id).all()
         overall_mastery = (
             sum(s.mastery_score for s in subjects) / len(subjects)
             if subjects else 0
@@ -48,33 +61,57 @@ def profile_stats():
             "total_assessments": total_assessments,
             "total_documents": total_documents,
             "total_flashcards": total_flashcards,
+            "tier": (user.tier if user else "free"),
         })
 
 
 @bp.route("/reset-progress", methods=["POST"])
 def reset_progress():
     """Reset mastery and study data only (keeps uploaded documents and knowledge chunks)."""
+    user_id = get_current_user_id()
     with get_db() as db:
         # Delete study-related data but keep documents and knowledge
-        db.query(ExamTopicWeight).delete()
-        db.query(ExamBlueprint).delete()
-        db.query(PlanTask).delete()
-        db.query(StudyPlan).delete()
-        db.query(SpacedRepetitionCard).delete()
-        db.query(AssessmentQuestion).delete()
-        db.query(Assessment).delete()
-        db.query(SessionMessage).delete()
-        db.query(StudySession).delete()
-        db.query(TopicMastery).delete()
-        db.query(SubjectMastery).delete()
-        
-        return jsonify({"status": "ok"})
+        db.query(ExamTopicWeight).filter_by(user_id=user_id).delete()
+        db.query(ExamBlueprint).filter_by(user_id=user_id).delete()
+        db.query(PlanTask).filter_by(user_id=user_id).delete()
+        db.query(StudyPlan).filter_by(user_id=user_id).delete()
+        db.query(SpacedRepetitionCard).filter_by(user_id=user_id).delete()
+        db.query(AssessmentQuestion).filter_by(user_id=user_id).delete()
+        db.query(Assessment).filter_by(user_id=user_id).delete()
+        db.query(SessionMessage).filter_by(user_id=user_id).delete()
+        db.query(StudySession).filter_by(user_id=user_id).delete()
+        db.query(TopicMastery).filter_by(user_id=user_id).delete()
+        db.query(SubjectMastery).filter_by(user_id=user_id).delete()
+        db.query(PointLedger).filter_by(user_id=user_id).delete()
+        db.query(Achievement).filter_by(user_id=user_id).delete()
+        db.query(RewardsProfile).filter_by(user_id=user_id).delete()
+    seed_subject_taxonomy(user_id=user_id)
+    seed_achievements(user_id=user_id)
+    return jsonify({"status": "ok"})
 
 
 @bp.route("/reset-all", methods=["POST"])
 def reset_all():
-    """Full nuclear reset - drops and recreates all tables."""
-    reset_database()
+    """Delete all data owned by the current user."""
+    user_id = get_current_user_id()
+    with get_db() as db:
+        db.query(ExamTopicWeight).filter_by(user_id=user_id).delete()
+        db.query(ExamBlueprint).filter_by(user_id=user_id).delete()
+        db.query(PlanTask).filter_by(user_id=user_id).delete()
+        db.query(StudyPlan).filter_by(user_id=user_id).delete()
+        db.query(SpacedRepetitionCard).filter_by(user_id=user_id).delete()
+        db.query(AssessmentQuestion).filter_by(user_id=user_id).delete()
+        db.query(Assessment).filter_by(user_id=user_id).delete()
+        db.query(SessionMessage).filter_by(user_id=user_id).delete()
+        db.query(StudySession).filter_by(user_id=user_id).delete()
+        db.query(TopicMastery).filter_by(user_id=user_id).delete()
+        db.query(SubjectMastery).filter_by(user_id=user_id).delete()
+        db.query(Document).filter_by(user_id=user_id).delete()
+        db.query(PointLedger).filter_by(user_id=user_id).delete()
+        db.query(Achievement).filter_by(user_id=user_id).delete()
+        db.query(RewardsProfile).filter_by(user_id=user_id).delete()
+    seed_subject_taxonomy(user_id=user_id)
+    seed_achievements(user_id=user_id)
     return jsonify({"status": "ok"})
 
 

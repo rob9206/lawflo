@@ -80,11 +80,14 @@ def create_session(
     subject: str | None = None,
     topics: list[str] | None = None,
     available_minutes: int | None = None,
+    session_type: str = "tutor",
+    user_id: str | None = None,
 ) -> dict:
     """Create a new tutoring session."""
     with get_db() as db:
         session = StudySession(
-            session_type="tutor",
+            user_id=user_id,
+            session_type=session_type,
             tutor_mode=mode,
             subject=subject,
             topics=json.dumps(topics or []),
@@ -95,16 +98,16 @@ def create_session(
         return session.to_dict()
 
 
-def get_session(session_id: str) -> dict | None:
+def get_session(session_id: str, user_id: str | None = None) -> dict | None:
     """Get session with message history."""
     with get_db() as db:
-        session = db.query(StudySession).filter_by(id=session_id).first()
+        session = db.query(StudySession).filter_by(id=session_id, user_id=user_id).first()
         if not session:
             return None
         data = session.to_dict()
         messages = (
             db.query(SessionMessage)
-            .filter_by(session_id=session_id)
+            .filter_by(session_id=session_id, user_id=user_id)
             .order_by(SessionMessage.message_index)
             .all()
         )
@@ -112,10 +115,10 @@ def get_session(session_id: str) -> dict | None:
         return data
 
 
-def _get_mastery_context(subject: str | None = None) -> str:
+def _get_mastery_context(subject: str | None = None, user_id: str | None = None) -> str:
     """Build student mastery context for the system prompt."""
     with get_db() as db:
-        query = db.query(SubjectMastery)
+        query = db.query(SubjectMastery).filter_by(user_id=user_id)
         if subject:
             query = query.filter_by(subject=subject)
         subjects = query.all()
@@ -124,7 +127,7 @@ def _get_mastery_context(subject: str | None = None) -> str:
         for s in subjects:
             topics = (
                 db.query(TopicMastery)
-                .filter_by(subject=s.subject)
+                .filter_by(user_id=user_id, subject=s.subject)
                 .order_by(TopicMastery.mastery_score)
                 .all()
             )
@@ -139,10 +142,15 @@ def _get_mastery_context(subject: str | None = None) -> str:
         return build_student_context(mastery_data)
 
 
-def _get_knowledge_context(subject: str | None, topics: list[str] | None, query: str) -> str:
+def _get_knowledge_context(
+    subject: str | None,
+    topics: list[str] | None,
+    query: str,
+    user_id: str | None = None,
+) -> str:
     """Retrieve relevant knowledge chunks for RAG context."""
     with get_db() as db:
-        q = db.query(KnowledgeChunk)
+        q = db.query(KnowledgeChunk).filter(KnowledgeChunk.user_id == user_id)
         if subject:
             q = q.filter(KnowledgeChunk.subject == subject)
         if topics:
@@ -174,13 +182,13 @@ def _get_knowledge_context(subject: str | None, topics: list[str] | None, query:
         return build_knowledge_context(chunk_dicts)
 
 
-def _get_exam_context(subject: str) -> str:
+def _get_exam_context(subject: str, user_id: str | None = None) -> str:
     """Build exam intelligence context if past exams have been analyzed."""
     from api.models.exam_blueprint import ExamBlueprint
     with get_db() as db:
         blueprint = (
             db.query(ExamBlueprint)
-            .filter_by(subject=subject)
+            .filter_by(user_id=user_id, subject=subject)
             .order_by(ExamBlueprint.created_at.desc())
             .first()
         )
@@ -193,21 +201,23 @@ def send_message(
     session_id: str,
     user_content: str,
     api_key_override: str | None = None,
+    user_id: str | None = None,
 ):
     """Send a user message and stream Claude's response.
 
     Yields text chunks for SSE streaming. Saves both messages to DB.
     """
     with get_db() as db:
-        session = db.query(StudySession).filter_by(id=session_id).first()
+        session = db.query(StudySession).filter_by(id=session_id, user_id=user_id).first()
         if not session:
             raise ValueError(f"Session {session_id} not found")
 
         # Count existing messages
-        msg_count = db.query(SessionMessage).filter_by(session_id=session_id).count()
+        msg_count = db.query(SessionMessage).filter_by(session_id=session_id, user_id=user_id).count()
 
         # Save user message
         user_msg = SessionMessage(
+            user_id=user_id,
             session_id=session_id,
             role="user",
             content=user_content,
@@ -219,7 +229,7 @@ def send_message(
         # Build message history
         history_rows = (
             db.query(SessionMessage)
-            .filter_by(session_id=session_id)
+            .filter_by(session_id=session_id, user_id=user_id)
             .order_by(SessionMessage.message_index)
             .all()
         )
@@ -231,9 +241,9 @@ def send_message(
     topics = json.loads(session.topics) if session.topics else None
     avail_min = session.available_minutes
 
-    student_ctx = _get_mastery_context(subject)
-    knowledge_ctx = _get_knowledge_context(subject, topics, user_content)
-    exam_ctx = _get_exam_context(subject) if subject else ""
+    student_ctx = _get_mastery_context(subject, user_id=user_id)
+    knowledge_ctx = _get_knowledge_context(subject, topics, user_content, user_id=user_id)
+    exam_ctx = _get_exam_context(subject, user_id=user_id) if subject else ""
     time_ctx = build_time_context(avail_min)
     system_prompt = build_system_prompt(mode, student_ctx, knowledge_ctx, exam_ctx, time_ctx)
 
@@ -255,13 +265,18 @@ def send_message(
     cleaned_response = _clean_markdown(full_response)
     
     # Save assistant message
-    _save_assistant_message(session_id, cleaned_response, msg_count + 1)
+    _save_assistant_message(session_id, cleaned_response, msg_count + 1, user_id=user_id)
 
     # Extract and apply performance signals
-    _process_performance_signals(session_id, full_response)
+    _process_performance_signals(session_id, full_response, user_id=user_id)
 
 
-def _save_assistant_message(session_id: str, content: str, index: int):
+def _save_assistant_message(
+    session_id: str,
+    content: str,
+    index: int,
+    user_id: str | None = None,
+):
     """Save the assistant's response to the database."""
     # Strip performance tags from stored content for cleaner display
     clean_content = re.sub(r"<performance>.*?</performance>", "", content, flags=re.DOTALL).strip()
@@ -270,6 +285,7 @@ def _save_assistant_message(session_id: str, content: str, index: int):
 
     with get_db() as db:
         msg = SessionMessage(
+            user_id=user_id,
             session_id=session_id,
             role="assistant",
             content=clean_content,
@@ -278,12 +294,16 @@ def _save_assistant_message(session_id: str, content: str, index: int):
         db.add(msg)
 
         # Update session message count
-        session = db.query(StudySession).filter_by(id=session_id).first()
+        session = db.query(StudySession).filter_by(id=session_id, user_id=user_id).first()
         if session:
             session.messages_count = index + 1
 
 
-def _process_performance_signals(session_id: str, response: str):
+def _process_performance_signals(
+    session_id: str,
+    response: str,
+    user_id: str | None = None,
+):
     """Parse <performance> JSON from Claude's response and update mastery scores."""
     match = re.search(r"<performance>\s*(\{.*?\})\s*</performance>", response, re.DOTALL)
     if not match:
@@ -300,14 +320,18 @@ def _process_performance_signals(session_id: str, response: str):
         return
 
     with get_db() as db:
-        session = db.query(StudySession).filter_by(id=session_id).first()
+        session = db.query(StudySession).filter_by(id=session_id, user_id=user_id).first()
         subject = session.subject if session else None
 
         for topic_name, delta in mastery_deltas.items():
             if not subject:
                 continue
 
-            topic = db.query(TopicMastery).filter_by(subject=subject, topic=topic_name).first()
+            topic = db.query(TopicMastery).filter_by(
+                user_id=user_id,
+                subject=subject,
+                topic=topic_name,
+            ).first()
             if topic:
                 new_score = max(0, min(100, topic.mastery_score + delta))
                 topic.mastery_score = new_score
@@ -321,19 +345,19 @@ def _process_performance_signals(session_id: str, response: str):
 
         # Update subject-level mastery (average of topic scores)
         if subject:
-            subj = db.query(SubjectMastery).filter_by(subject=subject).first()
+            subj = db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject).first()
             if subj:
-                topics = db.query(TopicMastery).filter_by(subject=subject).all()
+                topics = db.query(TopicMastery).filter_by(user_id=user_id, subject=subject).all()
                 if topics:
                     subj.mastery_score = sum(t.mastery_score for t in topics) / len(topics)
                 subj.sessions_count += 1
                 subj.last_studied_at = datetime.now(timezone.utc)
 
 
-def end_session(session_id: str) -> dict | None:
+def end_session(session_id: str, user_id: str | None = None) -> dict | None:
     """End a session and return a summary."""
     with get_db() as db:
-        session = db.query(StudySession).filter_by(id=session_id).first()
+        session = db.query(StudySession).filter_by(id=session_id, user_id=user_id).first()
         if not session:
             return None
 

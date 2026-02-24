@@ -56,20 +56,20 @@ def _get_client() -> anthropic.Anthropic:
     return get_claude_client()
 
 
-def analyze_exam(document_id: str) -> dict:
+def analyze_exam(document_id: str, user_id: str | None = None) -> dict:
     """Analyze a past exam document and create an ExamBlueprint.
 
     Returns the blueprint as a dict.
     """
     # Gather all text from the document's knowledge chunks
     with get_db() as db:
-        doc = db.query(Document).filter_by(id=document_id).first()
+        doc = db.query(Document).filter_by(id=document_id, user_id=user_id).first()
         if not doc:
             raise ValueError(f"Document {document_id} not found")
 
         chunks = (
             db.query(KnowledgeChunk)
-            .filter_by(document_id=document_id)
+            .filter_by(document_id=document_id, user_id=user_id)
             .order_by(KnowledgeChunk.chunk_index)
             .all()
         )
@@ -109,9 +109,10 @@ def analyze_exam(document_id: str) -> dict:
     # Store in database
     with get_db() as db:
         # Remove existing blueprint for this document (re-analysis)
-        db.query(ExamBlueprint).filter_by(document_id=document_id).delete()
+        db.query(ExamBlueprint).filter_by(document_id=document_id, user_id=user_id).delete()
 
         blueprint = ExamBlueprint(
+            user_id=user_id,
             document_id=document_id,
             subject=analysis.get("subject", doc_subject or "other"),
             exam_title=analysis.get("exam_title"),
@@ -126,6 +127,7 @@ def analyze_exam(document_id: str) -> dict:
 
         for topic_data in analysis.get("topics_tested", []):
             weight = ExamTopicWeight(
+                user_id=user_id,
                 blueprint_id=blueprint.id,
                 subject=analysis.get("subject", doc_subject or "other"),
                 topic=topic_data["topic"],
@@ -141,17 +143,23 @@ def analyze_exam(document_id: str) -> dict:
     return result
 
 
-def get_exam_blueprints(subject: str | None = None) -> list[dict]:
+def get_exam_blueprints(
+    subject: str | None = None,
+    user_id: str | None = None,
+) -> list[dict]:
     """Get all exam blueprints, optionally filtered by subject."""
     with get_db() as db:
-        query = db.query(ExamBlueprint)
+        query = db.query(ExamBlueprint).filter_by(user_id=user_id)
         if subject:
             query = query.filter_by(subject=subject)
         blueprints = query.order_by(ExamBlueprint.created_at.desc()).all()
         return [b.to_dict() for b in blueprints]
 
 
-def get_aggregated_topic_weights(subject: str) -> dict[str, float]:
+def get_aggregated_topic_weights(
+    subject: str,
+    user_id: str | None = None,
+) -> dict[str, float]:
     """Aggregate topic weights across all exams for a subject.
 
     If multiple past exams exist, average the weights to get a
@@ -162,7 +170,7 @@ def get_aggregated_topic_weights(subject: str) -> dict[str, float]:
     with get_db() as db:
         weights = (
             db.query(ExamTopicWeight)
-            .filter_by(subject=subject)
+            .filter_by(user_id=user_id, subject=subject)
             .all()
         )
 

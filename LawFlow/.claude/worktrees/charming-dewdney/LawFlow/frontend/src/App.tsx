@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { Toaster } from "sonner";
 import Layout from "@/components/common/Layout";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
 import TutorialModal from "@/components/common/TutorialModal";
 import { TutorialProvider } from "@/context/TutorialContext";
 
@@ -21,6 +22,9 @@ const SubjectDetailPage = lazy(() =>
 );
 const ExamSimulatorPage = lazy(() => import("@/pages/ExamSimulatorPage"));
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const RegisterPage = lazy(() => import("@/pages/RegisterPage"));
+const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const RewardsPage = lazy(() => import("@/pages/RewardsPage"));
 
@@ -47,25 +51,30 @@ export default function App() {
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/*" element={
-              <Layout>
-                <Routes>
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/documents" element={<DocumentsPage />} />
-                  <Route path="/tutor" element={<TutorPage />} />
-                  <Route path="/tutor/:sessionId" element={<TutorPage />} />
-                  <Route path="/auto-teach" element={<AutoTeachPage />} />
-                  <Route path="/auto-teach/session/:sessionId" element={<AutoTeachSessionPage />} />
-                  <Route path="/knowledge" element={<KnowledgePage />} />
-                  <Route path="/flashcards" element={<FlashcardPage />} />
-                  <Route path="/progress" element={<ProgressPage />} />
-                  <Route path="/subjects" element={<SubjectsListPage />} />
-                  <Route path="/subjects/:subject" element={<SubjectDetailPage />} />
-                  <Route path="/exam" element={<ExamSimulatorPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/rewards" element={<RewardsPage />} />
-                </Routes>
-              </Layout>
+              <ProtectedRoute>
+                <Layout>
+                  <Routes>
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/documents" element={<DocumentsPage />} />
+                    <Route path="/tutor" element={<TutorPage />} />
+                    <Route path="/tutor/:sessionId" element={<TutorPage />} />
+                    <Route path="/auto-teach" element={<AutoTeachPage />} />
+                    <Route path="/auto-teach/session/:sessionId" element={<AutoTeachSessionPage />} />
+                    <Route path="/knowledge" element={<KnowledgePage />} />
+                    <Route path="/flashcards" element={<FlashcardPage />} />
+                    <Route path="/progress" element={<ProgressPage />} />
+                    <Route path="/subjects" element={<SubjectsListPage />} />
+                    <Route path="/subjects/:subject" element={<SubjectDetailPage />} />
+                    <Route path="/exam" element={<ExamSimulatorPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/rewards" element={<RewardsPage />} />
+                  </Routes>
+                </Layout>
+              </ProtectedRoute>
             } />
           </Routes>
         </Suspense>

@@ -25,8 +25,12 @@ def _now() -> datetime:
 class ExamBlueprint(Base):
     """Top-level exam analysis — one per uploaded exam document."""
     __tablename__ = "exam_blueprints"
+    __table_args__ = (
+        Index("idx_eb_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     document_id = Column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     subject = Column(String, nullable=False)
     exam_title = Column(String)  # e.g. "Contracts Final Fall 2024"
@@ -59,11 +63,13 @@ class ExamTopicWeight(Base):
     """How heavily a specific topic is tested on a given exam."""
     __tablename__ = "exam_topic_weights"
     __table_args__ = (
-        Index("idx_etw_subject_topic", "subject", "topic"),
+        Index("idx_etw_user", "user_id"),
+        Index("idx_etw_subject_topic", "user_id", "subject", "topic"),
         Index("idx_etw_blueprint", "blueprint_id"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     blueprint_id = Column(String, ForeignKey("exam_blueprints.id", ondelete="CASCADE"), nullable=False)
     subject = Column(String, nullable=False)
     topic = Column(String, nullable=False)

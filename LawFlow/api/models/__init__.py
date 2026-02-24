@@ -1,6 +1,7 @@
 """SQLAlchemy models for LawFlow."""
 
 from api.models.base import Base
+from api.models.user import User
 from api.models.document import Document, KnowledgeChunk
 from api.models.student import SubjectMastery, TopicMastery
 from api.models.session import StudySession, SessionMessage
@@ -12,6 +13,7 @@ from api.models.rewards import PointLedger, Achievement, RewardsProfile
 
 __all__ = [
     "Base",
+    "User",
     "Document",
     "KnowledgeChunk",
     "SubjectMastery",

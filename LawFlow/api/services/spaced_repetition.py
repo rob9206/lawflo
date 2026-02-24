@@ -86,10 +86,10 @@ def _get_client() -> anthropic.Anthropic:
     return get_claude_client()
 
 
-def generate_cards_for_chunk(chunk_id: str) -> list[dict]:
+def generate_cards_for_chunk(chunk_id: str, user_id: str | None = None) -> list[dict]:
     """Generate flashcards from a single knowledge chunk using Claude."""
     with get_db() as db:
-        chunk = db.query(KnowledgeChunk).filter_by(id=chunk_id).first()
+        chunk = db.query(KnowledgeChunk).filter_by(id=chunk_id, user_id=user_id).first()
         if not chunk:
             raise ValueError(f"Chunk {chunk_id} not found")
 
@@ -127,6 +127,7 @@ def generate_cards_for_chunk(chunk_id: str) -> list[dict]:
     with get_db() as db:
         for card_data in cards_data:
             card = SpacedRepetitionCard(
+                user_id=user_id,
                 chunk_id=chunk_id,
                 subject=subject,
                 topic=topic,
@@ -142,13 +143,17 @@ def generate_cards_for_chunk(chunk_id: str) -> list[dict]:
     return created_cards
 
 
-def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]:
+def generate_cards_for_subject(
+    subject: str,
+    max_chunks: int = 10,
+    user_id: str | None = None,
+) -> list[dict]:
     """Generate flashcards for the weakest topics in a subject."""
     with get_db() as db:
         # Find weakest topics
         weak_topics = (
             db.query(TopicMastery)
-            .filter_by(subject=subject)
+            .filter_by(user_id=user_id, subject=subject)
             .order_by(TopicMastery.mastery_score)
             .limit(5)
             .all()
@@ -159,12 +164,16 @@ def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]
         existing_chunk_ids = {
             row[0]
             for row in db.query(SpacedRepetitionCard.chunk_id)
-            .filter(SpacedRepetitionCard.subject == subject)
+            .filter(
+                SpacedRepetitionCard.user_id == user_id,
+                SpacedRepetitionCard.subject == subject,
+            )
             .all()
             if row[0]
         }
 
         chunks_query = db.query(KnowledgeChunk).filter(
+            KnowledgeChunk.user_id == user_id,
             KnowledgeChunk.subject == subject
         )
         
@@ -179,6 +188,7 @@ def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]
             if not chunks:
                 logger.info(f"No chunks found for weak topics {weak_topic_names}, using all subject chunks")
                 chunks_query = db.query(KnowledgeChunk).filter(
+                    KnowledgeChunk.user_id == user_id,
                     KnowledgeChunk.subject == subject
                 )
                 chunks = chunks_query.limit(max_chunks * 2).all()
@@ -192,7 +202,7 @@ def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]
     all_cards = []
     for chunk in new_chunks:
         try:
-            cards = generate_cards_for_chunk(chunk.id)
+            cards = generate_cards_for_chunk(chunk.id, user_id=user_id)
             all_cards.extend(cards)
         except Exception as e:
             logger.warning(f"Failed to generate cards for chunk {chunk.id}: {e}")
@@ -203,12 +213,17 @@ def generate_cards_for_subject(subject: str, max_chunks: int = 10) -> list[dict]
 
 # ── Card Review Operations ──────────────────────────────────────────────────
 
-def get_due_cards(subject: str | None = None, limit: int = 20) -> list[dict]:
+def get_due_cards(
+    subject: str | None = None,
+    limit: int = 20,
+    user_id: str | None = None,
+) -> list[dict]:
     """Get cards that are due for review."""
     now = datetime.now(timezone.utc)
 
     with get_db() as db:
         query = db.query(SpacedRepetitionCard).filter(
+            SpacedRepetitionCard.user_id == user_id,
             SpacedRepetitionCard.next_review <= now
         )
         if subject:
@@ -224,12 +239,12 @@ def get_due_cards(subject: str | None = None, limit: int = 20) -> list[dict]:
         return [c.to_dict() for c in cards]
 
 
-def get_card_stats(subject: str | None = None) -> dict:
+def get_card_stats(subject: str | None = None, user_id: str | None = None) -> dict:
     """Get review statistics."""
     now = datetime.now(timezone.utc)
 
     with get_db() as db:
-        base = db.query(SpacedRepetitionCard)
+        base = db.query(SpacedRepetitionCard).filter(SpacedRepetitionCard.user_id == user_id)
         if subject:
             base = base.filter(SpacedRepetitionCard.subject == subject)
 
@@ -251,10 +266,10 @@ def get_card_stats(subject: str | None = None) -> dict:
         }
 
 
-def review_card(card_id: str, quality: int) -> dict:
+def review_card(card_id: str, quality: int, user_id: str | None = None) -> dict:
     """Review a card with a quality rating (0-5). Returns updated card."""
     with get_db() as db:
-        card = db.query(SpacedRepetitionCard).filter_by(id=card_id).first()
+        card = db.query(SpacedRepetitionCard).filter_by(id=card_id, user_id=user_id).first()
         if not card:
             raise ValueError(f"Card {card_id} not found")
 
@@ -263,10 +278,14 @@ def review_card(card_id: str, quality: int) -> dict:
         return card.to_dict()
 
 
-def get_all_cards(subject: str | None = None, topic: str | None = None) -> list[dict]:
+def get_all_cards(
+    subject: str | None = None,
+    topic: str | None = None,
+    user_id: str | None = None,
+) -> list[dict]:
     """Get all cards, optionally filtered."""
     with get_db() as db:
-        query = db.query(SpacedRepetitionCard)
+        query = db.query(SpacedRepetitionCard).filter(SpacedRepetitionCard.user_id == user_id)
         if subject:
             query = query.filter(SpacedRepetitionCard.subject == subject)
         if topic:
@@ -276,10 +295,10 @@ def get_all_cards(subject: str | None = None, topic: str | None = None) -> list[
         return [c.to_dict() for c in cards]
 
 
-def delete_card(card_id: str) -> bool:
+def delete_card(card_id: str, user_id: str | None = None) -> bool:
     """Delete a specific card."""
     with get_db() as db:
-        card = db.query(SpacedRepetitionCard).filter_by(id=card_id).first()
+        card = db.query(SpacedRepetitionCard).filter_by(id=card_id, user_id=user_id).first()
         if not card:
             return False
         db.delete(card)

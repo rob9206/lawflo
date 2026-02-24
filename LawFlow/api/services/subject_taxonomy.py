@@ -155,24 +155,26 @@ TAXONOMY: dict[str, dict] = {
 }
 
 
-def seed_subject_taxonomy() -> None:
+def seed_subject_taxonomy(user_id: str | None = None) -> None:
     """Seed all subjects and topics into the database.
 
     Idempotent — skips rows that already exist, safe to call on every startup.
     """
     with get_db() as db:
         for subject_key, subject_data in TAXONOMY.items():
-            if not db.query(SubjectMastery).filter_by(subject=subject_key).first():
+            if not db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject_key).first():
                 db.add(SubjectMastery(
+                    user_id=user_id,
                     subject=subject_key,
                     display_name=subject_data["display_name"],
                 ))
 
             for topic_key, topic_display in subject_data["topics"].items():
                 if not db.query(TopicMastery).filter_by(
-                    subject=subject_key, topic=topic_key
+                    user_id=user_id, subject=subject_key, topic=topic_key
                 ).first():
                     db.add(TopicMastery(
+                        user_id=user_id,
                         subject=subject_key,
                         topic=topic_key,
                         display_name=topic_display,

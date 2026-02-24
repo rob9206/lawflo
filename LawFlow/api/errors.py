@@ -16,3 +16,13 @@ class NotFoundError(APIError):
 class ValidationError(APIError):
     def __init__(self, message: str = "Validation failed"):
         super().__init__(message, 422)
+
+
+class UnauthorizedError(APIError):
+    def __init__(self, message: str = "Authentication required"):
+        super().__init__(message, 401)
+
+
+class ForbiddenError(APIError):
+    def __init__(self, message: str = "Forbidden"):
+        super().__init__(message, 403)

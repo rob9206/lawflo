@@ -8,8 +8,11 @@ import time
 from flask import Blueprint, request, jsonify, Response
 
 from api.errors import ValidationError, NotFoundError
+from api.middleware.auth import get_current_user, get_current_user_id, login_required
 from api.services import tutor_engine
+from api.services.database import get_db
 from api.services.prompt_library import MODES
+from api.services.tier_limits import check_tier_limit
 
 _PERF_TAG_RE = re.compile(r"<performance>[\s\S]*?</performance>")
 _DEBUG_LOG_PATH = r"c:\Dev\LawFlow\.claude\worktrees\charming-dewdney\.cursor\debug.log"
@@ -41,6 +44,12 @@ def _debug_log(hypothesis_id: str, message: str, data: dict):
 bp = Blueprint("tutor", __name__, url_prefix="/api/tutor")
 
 
+@bp.before_request
+@login_required
+def require_auth():
+    return None
+
+
 @bp.route("/modes", methods=["GET"])
 def list_modes():
     """List available tutor modes."""
@@ -58,6 +67,7 @@ def list_modes():
 @bp.route("/session", methods=["POST"])
 def create_session():
     """Start a new tutoring session."""
+    user_id = get_current_user_id()
     data = request.get_json()
     if not data:
         raise ValidationError("JSON body required")
@@ -66,10 +76,14 @@ def create_session():
     if mode not in MODES:
         raise ValidationError(f"Invalid mode. Available: {', '.join(MODES.keys())}")
 
+    with get_db() as db:
+        check_tier_limit(db, get_current_user(), "tutor_sessions_daily")
+
     session = tutor_engine.create_session(
         mode=mode,
         subject=data.get("subject"),
         topics=data.get("topics"),
+        user_id=user_id,
     )
     return jsonify(session), 201
 
@@ -77,6 +91,7 @@ def create_session():
 @bp.route("/session/<session_id>", methods=["GET"])
 def get_session(session_id: str):
     """Get session details with message history."""
+    user_id = get_current_user_id()
     # #region agent log
     _debug_log(
         "H10",
@@ -87,7 +102,7 @@ def get_session(session_id: str):
         },
     )
     # #endregion
-    session = tutor_engine.get_session(session_id)
+    session = tutor_engine.get_session(session_id, user_id=user_id)
     if not session:
         # #region agent log
         _debug_log(
@@ -116,6 +131,7 @@ def get_session(session_id: str):
 @bp.route("/message", methods=["POST"])
 def send_message():
     """Send a message and stream Claude's response via SSE."""
+    user_id = get_current_user_id()
     data = request.get_json()
     if not data:
         raise ValidationError("JSON body required")
@@ -134,6 +150,7 @@ def send_message():
                 session_id,
                 content,
                 api_key_override=header_key,
+                user_id=user_id,
             ):
                 text = perf_buf + chunk
                 perf_buf = ""
@@ -160,12 +177,14 @@ def send_message():
 @bp.route("/recent", methods=["GET"])
 def recent_sessions():
     """Get the most recent study sessions."""
+    user_id = get_current_user_id()
     limit = request.args.get("limit", 5, type=int)
     from api.services.database import get_db
     from api.models.session import StudySession
     with get_db() as db:
         sessions = (
             db.query(StudySession)
+            .filter(StudySession.user_id == user_id)
             .order_by(StudySession.started_at.desc())
             .limit(limit)
             .all()
@@ -176,7 +195,8 @@ def recent_sessions():
 @bp.route("/session/<session_id>/end", methods=["POST"])
 def end_session(session_id: str):
     """End a tutoring session."""
-    result = tutor_engine.end_session(session_id)
+    user_id = get_current_user_id()
+    result = tutor_engine.end_session(session_id, user_id=user_id)
     if not result:
         raise NotFoundError("Session not found")
 
@@ -192,6 +212,7 @@ def end_session(session_id: str):
                 f"Completed tutor session ({result.get('tutor_mode', 'study')})",
                 base_amount=base,
                 metadata={"subject": result.get("subject"), "mode": result.get("tutor_mode")},
+                user_id=user_id,
             )
             result["points_awarded"] = reward
     except Exception:

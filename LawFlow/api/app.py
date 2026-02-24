@@ -44,6 +44,8 @@ def create_app(static_dir: str | None = None) -> Flask:
     CORS(app, origins=allowed_origins,
          expose_headers=["X-Session-Id", "X-Tutor-Mode", "X-Topic"])
 
+    from api.middleware.auth import get_current_user_id, login_required
+
     # Error handler
     @app.errorhandler(APIError)
     def handle_api_error(error):
@@ -63,13 +65,19 @@ def create_app(static_dir: str | None = None) -> Flask:
 
     # Seed database on demand (subjects/topics); safe to call multiple times
     @app.route("/api/seed", methods=["POST"])
+    @login_required
     def seed():
         from api.services.subject_taxonomy import seed_subject_taxonomy
-        seed_subject_taxonomy()
+        from api.services.achievement_definitions import seed_achievements
+        user_id = get_current_user_id()
+        seed_subject_taxonomy(user_id=user_id)
+        seed_achievements(user_id=user_id)
         return jsonify({"status": "ok", "message": "Subject and topic taxonomy seeded."})
 
     # Register blueprints
     from api.routes.documents import bp as documents_bp
+    from api.routes.auth import bp as auth_bp
+    from api.routes.billing import bp as billing_bp
     from api.routes.tutor import bp as tutor_bp
     from api.routes.progress import bp as progress_bp
     from api.routes.knowledge import bp as knowledge_bp
@@ -79,6 +87,8 @@ def create_app(static_dir: str | None = None) -> Flask:
     from api.routes.profile import bp as profile_bp
     from api.routes.rewards import bp as rewards_bp
 
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(billing_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(tutor_bp)
     app.register_blueprint(progress_bp)
@@ -101,16 +111,10 @@ def create_app(static_dir: str | None = None) -> Flask:
                 return send_from_directory(resolved_static_dir, path)
             return send_from_directory(resolved_static_dir, "index.html")
 
-    # Initialize database and seed achievements
+    # Initialize database tables.
     with app.app_context():
         from api.services.database import init_database
         init_database()
-
-        from api.services.achievement_definitions import seed_achievements
-        seed_achievements()
-
-        from api.services.subject_taxonomy import seed_subject_taxonomy
-        seed_subject_taxonomy()
 
     return app
 

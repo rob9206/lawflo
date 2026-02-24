@@ -12,12 +12,14 @@ import {
   Award,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const handleGetStarted = () => {
-    navigate("/dashboard");
+    navigate(isAuthenticated ? "/dashboard" : "/register");
   };
 
   return (
@@ -40,7 +42,7 @@ export default function LandingPage() {
             className="duo-btn duo-btn-green"
             style={{ padding: "8px 16px", fontSize: "15px" }}
           >
-            Get Started
+            {isAuthenticated ? "Open App" : "Get Started"}
           </button>
         </div>
       </nav>

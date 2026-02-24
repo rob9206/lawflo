@@ -2,10 +2,17 @@
 
 from flask import Blueprint, jsonify, request
 
+from api.middleware.auth import get_current_user_id, login_required
 from api.services.database import get_db
 from api.models.document import KnowledgeChunk, Document
 
 bp = Blueprint("knowledge", __name__, url_prefix="/api/knowledge")
+
+
+@bp.before_request
+@login_required
+def require_auth():
+    return None
 
 
 @bp.route("/search", methods=["GET"])
@@ -17,8 +24,9 @@ def search():
     content_type = request.args.get("content_type")
     limit = request.args.get("limit", 20, type=int)
 
+    user_id = get_current_user_id()
     with get_db() as db:
-        query = db.query(KnowledgeChunk)
+        query = db.query(KnowledgeChunk).filter(KnowledgeChunk.user_id == user_id)
 
         if subject:
             query = query.filter(KnowledgeChunk.subject == subject)
@@ -36,10 +44,12 @@ def search():
 @bp.route("/subjects", methods=["GET"])
 def list_subjects():
     """List all subjects with chunk counts."""
+    user_id = get_current_user_id()
     with get_db() as db:
         from sqlalchemy import func
         results = (
             db.query(KnowledgeChunk.subject, func.count(KnowledgeChunk.id))
+            .filter(KnowledgeChunk.user_id == user_id)
             .group_by(KnowledgeChunk.subject)
             .all()
         )
@@ -49,11 +59,15 @@ def list_subjects():
 @bp.route("/topics/<subject>", methods=["GET"])
 def list_topics(subject: str):
     """List all topics for a subject with chunk counts."""
+    user_id = get_current_user_id()
     with get_db() as db:
         from sqlalchemy import func
         results = (
             db.query(KnowledgeChunk.topic, func.count(KnowledgeChunk.id))
-            .filter(KnowledgeChunk.subject == subject)
+            .filter(
+                KnowledgeChunk.user_id == user_id,
+                KnowledgeChunk.subject == subject,
+            )
             .group_by(KnowledgeChunk.topic)
             .all()
         )

@@ -1,5 +1,6 @@
 import api from "@/lib/api";
 import { getStoredApiKey } from "@/lib/apiKey";
+import { getAccessToken } from "@/lib/authStorage";
 
 export interface TeachingTarget {
   subject: string;
@@ -79,6 +80,10 @@ export async function startAutoSession(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (key) {
     headers["X-Anthropic-Api-Key"] = key;
+  }
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const response = await fetch("/api/auto-teach/start", {

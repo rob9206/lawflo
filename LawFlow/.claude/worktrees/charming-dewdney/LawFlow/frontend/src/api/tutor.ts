@@ -1,5 +1,6 @@
 import api from "@/lib/api";
 import { getStoredApiKey } from "@/lib/apiKey";
+import { getAccessToken } from "@/lib/authStorage";
 import type { TutorSession, TutorMode } from "@/types";
 
 export async function getModes(): Promise<Record<string, TutorMode>> {
@@ -41,6 +42,10 @@ export async function sendMessageStream(
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (key) {
     headers["X-Anthropic-Api-Key"] = key;
+  }
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const response = await fetch("/api/tutor/message", {

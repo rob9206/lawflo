@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   FileText,
   MessageSquare,
@@ -15,31 +15,42 @@ import {
   X,
   LayoutDashboard,
   CreditCard,
+  Crown,
+  LogOut,
   Search,
   Sun,
   Moon,
 } from "lucide-react";
 import { useTutorial } from "@/context/TutorialContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/documents", icon: FileText, label: "Documents" },
   { to: "/tutor", icon: MessageSquare, label: "Tutor" },
-  { to: "/auto-teach", icon: Zap, label: "AutoTeach" },
+  { to: "/auto-teach", icon: Zap, label: "AutoTeach", proHint: true },
   { to: "/flashcards", icon: CreditCard, label: "Flashcards" },
   { to: "/exam", icon: ClipboardCheck, label: "Exam" },
   { to: "/subjects", icon: BookOpen, label: "Subjects" },
   { to: "/progress", icon: BarChart3, label: "Progress" },
   { to: "/knowledge", icon: Search, label: "Knowledge" },
   { to: "/rewards", icon: Trophy, label: "Rewards" },
+  { to: "/pricing", icon: Crown, label: "Pricing" },
   { to: "/profile", icon: User, label: "Profile" },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
   const { openTutorial } = useTutorial();
   const { theme, toggleTheme } = useTheme();
+  const { user, isPro, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const sidebar = (
     <>
@@ -84,7 +95,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         >
           Navigation
         </p>
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems.map(({ to, icon: Icon, label, proHint }) => (
           <NavLink
             key={to}
             to={to}
@@ -105,6 +116,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   style={{ color: isActive ? "var(--blue)" : undefined }}
                 />
                 <span>{label}</span>
+                {proHint && !isPro && (
+                  <span className="duo-badge duo-badge-gold" style={{ marginLeft: "auto" }}>
+                    PRO
+                  </span>
+                )}
               </>
             )}
           </NavLink>
@@ -115,6 +131,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         className="p-3 space-y-1"
         style={{ borderTop: "2px solid var(--border)" }}
       >
+        <div
+          className="p-3 mb-2"
+          style={{
+            borderRadius: "var(--radius-md)",
+            border: "2px solid var(--border)",
+            background: "var(--surface-bg)",
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <p style={{ fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>
+              {user?.display_name || "Law Student"}
+            </p>
+            <span className={isPro ? "duo-badge duo-badge-gold" : "duo-badge duo-badge-blue"}>
+              {isPro ? "PRO" : "FREE"}
+            </span>
+          </div>
+          <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)" }}>
+            {user?.email || ""}
+          </p>
+        </div>
+        {!isPro && (
+          <button
+            onClick={() => navigate("/pricing")}
+            className="duo-btn duo-btn-green w-full justify-start text-sm"
+            style={{ textTransform: "none", fontWeight: 700, letterSpacing: "normal", padding: "8px 12px" }}
+          >
+            <Crown size={16} />
+            <span>Upgrade to Pro</span>
+          </button>
+        )}
         <button
           onClick={openTutorial}
           className="duo-btn duo-btn-ghost w-full justify-start text-sm"
@@ -131,6 +177,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         >
           {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
           <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
+        </button>
+        <button
+          onClick={handleLogout}
+          className="duo-btn duo-btn-ghost w-full justify-start text-sm"
+          style={{ textTransform: "none", fontWeight: 700, letterSpacing: "normal", padding: "8px 12px" }}
+        >
+          <LogOut size={16} />
+          <span>Log Out</span>
         </button>
       </div>
     </>

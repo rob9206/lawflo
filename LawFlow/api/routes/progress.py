@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, jsonify, request
 
+from api.middleware.auth import get_current_user_id, login_required
 from api.services.database import get_db
 from api.models.student import SubjectMastery, TopicMastery
 from api.models.session import StudySession
@@ -12,18 +13,30 @@ from api.models.document import KnowledgeChunk
 bp = Blueprint("progress", __name__, url_prefix="/api/progress")
 
 
+@bp.before_request
+@login_required
+def require_auth():
+    return None
+
+
 @bp.route("/dashboard", methods=["GET"])
 def dashboard():
     """Full dashboard data: subjects, mastery, study time, knowledge stats."""
+    user_id = get_current_user_id()
     with get_db() as db:
-        subjects = db.query(SubjectMastery).order_by(SubjectMastery.display_name).all()
-        total_chunks = db.query(KnowledgeChunk).count()
-        total_sessions = db.query(StudySession).count()
+        subjects = (
+            db.query(SubjectMastery)
+            .filter_by(user_id=user_id)
+            .order_by(SubjectMastery.display_name)
+            .all()
+        )
+        total_chunks = db.query(KnowledgeChunk).filter_by(user_id=user_id).count()
+        total_sessions = db.query(StudySession).filter_by(user_id=user_id).count()
         total_study_minutes = sum(s.total_study_time_minutes or 0 for s in subjects)
 
         subject_data = []
         for s in subjects:
-            topics = db.query(TopicMastery).filter_by(subject=s.subject).all()
+            topics = db.query(TopicMastery).filter_by(user_id=user_id, subject=s.subject).all()
             subject_data.append({
                 **s.to_dict(),
                 "topic_count": len(topics),
@@ -48,22 +61,29 @@ def dashboard():
 @bp.route("/mastery", methods=["GET"])
 def mastery_overview():
     """Mastery scores by subject."""
+    user_id = get_current_user_id()
     with get_db() as db:
-        subjects = db.query(SubjectMastery).order_by(SubjectMastery.mastery_score).all()
+        subjects = (
+            db.query(SubjectMastery)
+            .filter_by(user_id=user_id)
+            .order_by(SubjectMastery.mastery_score)
+            .all()
+        )
         return jsonify([s.to_dict() for s in subjects])
 
 
 @bp.route("/mastery/<subject>", methods=["GET"])
 def subject_mastery(subject: str):
     """Detailed mastery for a specific subject with topic breakdown."""
+    user_id = get_current_user_id()
     with get_db() as db:
-        subj = db.query(SubjectMastery).filter_by(subject=subject).first()
+        subj = db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject).first()
         if not subj:
             return jsonify({"error": "Subject not found"}), 404
 
         topics = (
             db.query(TopicMastery)
-            .filter_by(subject=subject)
+            .filter_by(user_id=user_id, subject=subject)
             .order_by(TopicMastery.mastery_score)
             .all()
         )
@@ -78,9 +98,11 @@ def subject_mastery(subject: str):
 def weaknesses():
     """Top weakest topics across all subjects."""
     limit = request.args.get("limit", 10, type=int)
+    user_id = get_current_user_id()
     with get_db() as db:
         topics = (
             db.query(TopicMastery)
+            .filter(TopicMastery.user_id == user_id)
             .filter(TopicMastery.exposure_count > 0)
             .order_by(TopicMastery.mastery_score)
             .limit(limit)
@@ -96,9 +118,11 @@ def study_history():
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=days)
 
+    user_id = get_current_user_id()
     with get_db() as db:
         sessions = (
             db.query(StudySession)
+            .filter(StudySession.user_id == user_id)
             .filter(StudySession.started_at >= cutoff)
             .order_by(StudySession.started_at)
             .all()
@@ -125,9 +149,11 @@ def study_history():
 @bp.route("/streaks", methods=["GET"])
 def streaks():
     """Current streak, longest streak, and total study days."""
+    user_id = get_current_user_id()
     with get_db() as db:
         sessions = (
             db.query(StudySession)
+            .filter(StudySession.user_id == user_id)
             .order_by(StudySession.started_at.desc())
             .all()
         )

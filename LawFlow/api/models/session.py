@@ -19,8 +19,12 @@ def _now() -> datetime:
 
 class StudySession(Base):
     __tablename__ = "study_sessions"
+    __table_args__ = (
+        Index("idx_ss_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     session_type = Column(String, nullable=False)  # tutor, assessment, review, free_study
     tutor_mode = Column(String)  # socratic, irac, issue_spot, hypo, explain, exam_strategy
     subject = Column(String)
@@ -57,10 +61,12 @@ class StudySession(Base):
 class SessionMessage(Base):
     __tablename__ = "session_messages"
     __table_args__ = (
+        Index("idx_sm_user", "user_id"),
         Index("idx_sm_session", "session_id"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     session_id = Column(String, ForeignKey("study_sessions.id", ondelete="CASCADE"), nullable=False)
     role = Column(String, nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)

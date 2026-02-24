@@ -44,6 +44,7 @@ def award_points(
     description: str,
     base_amount: int,
     metadata: dict | None = None,
+    user_id: str | None = None,
 ) -> dict:
     """Central point-awarding function. All point earning goes through here.
 
@@ -63,6 +64,7 @@ def award_points(
         with get_db() as db:
             # 1. Create base ledger entry
             db.add(PointLedger(
+                user_id=user_id,
                 amount=base_amount,
                 activity_type=activity_type,
                 activity_id=activity_id,
@@ -76,6 +78,7 @@ def award_points(
                 result["bonus"] = bonus
                 result["points_awarded"] += bonus
                 db.add(PointLedger(
+                    user_id=user_id,
                     amount=bonus,
                     activity_type="random_bonus",
                     activity_id=activity_id,
@@ -84,28 +87,28 @@ def award_points(
                 ))
 
             # 3. Update streak
-            profile = _get_or_create_profile(db)
-            streak_info = _update_streak(db, profile)
+            profile = _get_or_create_profile(db, user_id=user_id)
+            streak_info = _update_streak(db, profile, user_id=user_id)
             result["streak_info"] = streak_info
             if streak_info and streak_info.get("bonus", 0) > 0:
                 result["points_awarded"] += streak_info["bonus"]
 
             # 4. Check achievement progress
-            unlocked = _check_achievements(db, activity_type, metadata or {})
+            unlocked = _check_achievements(db, activity_type, metadata or {}, user_id=user_id)
             result["achievements_unlocked"] = unlocked
             for ach in unlocked:
                 result["points_awarded"] += ach["points_awarded"]
 
             # Check special achievements
             if activity_type == "exam_complete" and metadata and metadata.get("score") == 100:
-                perfect = _try_unlock_achievement(db, "perfect_exam")
+                perfect = _try_unlock_achievement(db, "perfect_exam", user_id=user_id)
                 if perfect:
                     result["achievements_unlocked"].append(perfect)
                     result["points_awarded"] += perfect["points_awarded"]
 
             # Check mastery achievements on exam completion
             if activity_type == "exam_complete":
-                mastery_unlocks = _check_mastery_achievements(db)
+                mastery_unlocks = _check_mastery_achievements(db, user_id=user_id)
                 for ach in mastery_unlocks:
                     result["achievements_unlocked"].append(ach)
                     result["points_awarded"] += ach["points_awarded"]
@@ -127,7 +130,7 @@ def award_points(
             db.flush()
 
             # 6. Compute balance
-            result["new_balance"] = _get_balance(db)
+            result["new_balance"] = _get_balance(db, user_id=user_id)
 
     except Exception:
         logger.exception("Error awarding points for %s", activity_type)
@@ -135,17 +138,17 @@ def award_points(
     return result
 
 
-def get_balance() -> int:
+def get_balance(user_id: str | None = None) -> int:
     """Current point balance (SUM of all ledger entries)."""
     with get_db() as db:
-        return _get_balance(db)
+        return _get_balance(db, user_id=user_id)
 
 
-def get_summary() -> dict:
+def get_summary(user_id: str | None = None) -> dict:
     """Full rewards summary for dashboard/header."""
     with get_db() as db:
-        profile = _get_or_create_profile(db)
-        balance = _get_balance(db)
+        profile = _get_or_create_profile(db, user_id=user_id)
+        balance = _get_balance(db, user_id=user_id)
 
         # Level progress toward next level
         current_threshold = 0
@@ -169,6 +172,7 @@ def get_summary() -> dict:
         # Recent transactions
         recent = (
             db.query(PointLedger)
+            .filter_by(user_id=user_id)
             .order_by(PointLedger.created_at.desc())
             .limit(10)
             .all()
@@ -187,10 +191,15 @@ def get_summary() -> dict:
         }
 
 
-def get_ledger(limit: int = 50, offset: int = 0, activity_type: str | None = None) -> dict:
+def get_ledger(
+    limit: int = 50,
+    offset: int = 0,
+    activity_type: str | None = None,
+    user_id: str | None = None,
+) -> dict:
     """Paginated point history."""
     with get_db() as db:
-        query = db.query(PointLedger)
+        query = db.query(PointLedger).filter_by(user_id=user_id)
         if activity_type:
             query = query.filter_by(activity_type=activity_type)
 
@@ -210,11 +219,12 @@ def get_ledger(limit: int = 50, offset: int = 0, activity_type: str | None = Non
         }
 
 
-def get_achievements() -> list[dict]:
+def get_achievements(user_id: str | None = None) -> list[dict]:
     """All achievements with progress."""
     with get_db() as db:
         achievements = (
             db.query(Achievement)
+            .filter_by(user_id=user_id)
             .order_by(
                 Achievement.unlocked_at.desc().nullslast(),
                 Achievement.rarity,
@@ -228,19 +238,19 @@ def get_achievements() -> list[dict]:
 # ── Internal helpers ──────────────────────────────────────────────
 
 
-def _get_or_create_profile(db) -> RewardsProfile:
+def _get_or_create_profile(db, user_id: str | None = None) -> RewardsProfile:
     """Get or create the single rewards profile."""
-    profile = db.query(RewardsProfile).first()
+    profile = db.query(RewardsProfile).filter_by(user_id=user_id).first()
     if not profile:
-        profile = RewardsProfile()
+        profile = RewardsProfile(user_id=user_id)
         db.add(profile)
         db.flush()
     return profile
 
 
-def _get_balance(db) -> int:
+def _get_balance(db, user_id: str | None = None) -> int:
     """SUM of all ledger amounts."""
-    result = db.query(func.sum(PointLedger.amount)).scalar()
+    result = db.query(func.sum(PointLedger.amount)).filter_by(user_id=user_id).scalar()
     return result or 0
 
 
@@ -251,7 +261,7 @@ def _roll_random_bonus() -> int | None:
     return None
 
 
-def _update_streak(db, profile: RewardsProfile) -> dict | None:
+def _update_streak(db, profile: RewardsProfile, user_id: str | None = None) -> dict | None:
     """Update daily streak. Returns streak info + any bonus awarded."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -279,6 +289,7 @@ def _update_streak(db, profile: RewardsProfile) -> dict | None:
     # Streak bonus: 10 * min(streak, 7), caps at 70/day
     streak_bonus = 10 * min(profile.current_streak, 7)
     db.add(PointLedger(
+        user_id=user_id,
         amount=streak_bonus,
         activity_type="streak_bonus",
         description=f"Day {profile.current_streak} streak bonus!",
@@ -291,7 +302,7 @@ def _update_streak(db, profile: RewardsProfile) -> dict | None:
     streak_unlocks = []
     for threshold, key in streak_achievements.items():
         if profile.current_streak >= threshold:
-            ach = _try_unlock_achievement(db, key, profile.current_streak)
+            ach = _try_unlock_achievement(db, key, profile.current_streak, user_id=user_id)
             if ach:
                 streak_unlocks.append(ach)
 
@@ -303,13 +314,18 @@ def _update_streak(db, profile: RewardsProfile) -> dict | None:
     }
 
 
-def _check_achievements(db, activity_type: str, metadata: dict) -> list[dict]:
+def _check_achievements(
+    db,
+    activity_type: str,
+    metadata: dict,
+    user_id: str | None = None,
+) -> list[dict]:
     """Check and update counter-based achievements for this activity type."""
     keys = ACTIVITY_ACHIEVEMENT_MAP.get(activity_type, [])
     unlocked = []
 
     for key in keys:
-        ach = db.query(Achievement).filter_by(achievement_key=key).first()
+        ach = db.query(Achievement).filter_by(user_id=user_id, achievement_key=key).first()
         if not ach or ach.unlocked_at:
             continue
 
@@ -325,6 +341,7 @@ def _check_achievements(db, activity_type: str, metadata: dict) -> list[dict]:
             ach.unlocked_at = datetime.now(timezone.utc)
             # Award achievement bonus
             db.add(PointLedger(
+                user_id=user_id,
                 amount=ach.points_awarded,
                 activity_type="achievement_unlock",
                 description=f"Achievement unlocked: {ach.title}",
@@ -336,9 +353,14 @@ def _check_achievements(db, activity_type: str, metadata: dict) -> list[dict]:
     return unlocked
 
 
-def _try_unlock_achievement(db, key: str, value: int = 1) -> dict | None:
+def _try_unlock_achievement(
+    db,
+    key: str,
+    value: int = 1,
+    user_id: str | None = None,
+) -> dict | None:
     """Try to unlock a specific achievement. Returns dict if newly unlocked."""
-    ach = db.query(Achievement).filter_by(achievement_key=key).first()
+    ach = db.query(Achievement).filter_by(user_id=user_id, achievement_key=key).first()
     if not ach or ach.unlocked_at:
         return None
 
@@ -346,6 +368,7 @@ def _try_unlock_achievement(db, key: str, value: int = 1) -> dict | None:
     if ach.current_value >= ach.target_value:
         ach.unlocked_at = datetime.now(timezone.utc)
         db.add(PointLedger(
+            user_id=user_id,
             amount=ach.points_awarded,
             activity_type="achievement_unlock",
             description=f"Achievement unlocked: {ach.title}",
@@ -356,25 +379,34 @@ def _try_unlock_achievement(db, key: str, value: int = 1) -> dict | None:
     return None
 
 
-def _check_mastery_achievements(db) -> list[dict]:
+def _check_mastery_achievements(db, user_id: str | None = None) -> list[dict]:
     """Check mastery-based achievements (topic hitting 80%, all above 50%)."""
     unlocked = []
 
     # mastery_first_80: any topic >= 80%
-    ach_80 = db.query(Achievement).filter_by(achievement_key="mastery_first_80").first()
+    ach_80 = db.query(Achievement).filter_by(
+        user_id=user_id,
+        achievement_key="mastery_first_80",
+    ).first()
     if ach_80 and not ach_80.unlocked_at:
-        high_mastery = db.query(TopicMastery).filter(TopicMastery.mastery_score >= 80).first()
+        high_mastery = db.query(TopicMastery).filter(
+            TopicMastery.user_id == user_id,
+            TopicMastery.mastery_score >= 80,
+        ).first()
         if high_mastery:
-            result = _try_unlock_achievement(db, "mastery_first_80")
+            result = _try_unlock_achievement(db, "mastery_first_80", user_id=user_id)
             if result:
                 unlocked.append(result)
 
     # mastery_all_50: all topics >= 50%
-    ach_all = db.query(Achievement).filter_by(achievement_key="mastery_all_50").first()
+    ach_all = db.query(Achievement).filter_by(
+        user_id=user_id,
+        achievement_key="mastery_all_50",
+    ).first()
     if ach_all and not ach_all.unlocked_at:
-        topics = db.query(TopicMastery).all()
+        topics = db.query(TopicMastery).filter_by(user_id=user_id).all()
         if topics and all(t.mastery_score >= 50 for t in topics):
-            result = _try_unlock_achievement(db, "mastery_all_50")
+            result = _try_unlock_achievement(db, "mastery_all_50", user_id=user_id)
             if result:
                 unlocked.append(result)
 

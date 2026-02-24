@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, Text, DateTime, Index
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Index
 
 from api.models.base import Base
 
@@ -22,11 +22,13 @@ class PointLedger(Base):
 
     __tablename__ = "point_ledger"
     __table_args__ = (
+        Index("idx_pl_user", "user_id"),
         Index("idx_pl_created", "created_at"),
         Index("idx_pl_activity", "activity_type"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     amount = Column(Integer, nullable=False)
     activity_type = Column(String, nullable=False)
     activity_id = Column(String)
@@ -54,11 +56,13 @@ class Achievement(Base):
 
     __tablename__ = "achievements"
     __table_args__ = (
-        Index("idx_ach_key", "achievement_key", unique=True),
+        Index("idx_ach_user", "user_id"),
+        Index("idx_ach_key", "user_id", "achievement_key", unique=True),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
-    achievement_key = Column(String, unique=True, nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    achievement_key = Column(String, nullable=False)
     title = Column(String, nullable=False)
     description = Column(String, nullable=False)
     icon = Column(String, default="trophy")
@@ -90,8 +94,12 @@ class RewardsProfile(Base):
     """Single-row profile for the student (no auth — one user)."""
 
     __tablename__ = "rewards_profile"
+    __table_args__ = (
+        Index("idx_rp_user", "user_id", unique=True),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     active_title = Column(String, default="Law Student")
     current_streak = Column(Integer, default=0)
     longest_streak = Column(Integer, default=0)

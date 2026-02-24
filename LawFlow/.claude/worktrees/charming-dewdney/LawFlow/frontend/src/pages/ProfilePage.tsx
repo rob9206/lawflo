@@ -1,35 +1,137 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { User, BookOpen, Target, Clock, GraduationCap, FileText, AlertTriangle, RotateCcw, Trash2, Key } from "lucide-react";
-import { getProfileStats, resetProgress, resetAll } from "@/api/profile";
-import { clearApiKey, getStoredApiKey, looksLikeAnthropicKey, maskApiKey, saveApiKey } from "@/lib/apiKey";
-import Card from "@/components/ui/Card";
+import {
+  AlertTriangle,
+  BookOpen,
+  Clock,
+  Crown,
+  FileText,
+  GraduationCap,
+  Key,
+  Lock,
+  Mail,
+  RotateCcw,
+  Target,
+  Trash2,
+  User,
+} from "lucide-react";
+import { getProfileStats, resetAll, resetProgress } from "@/api/profile";
+import { createCheckout, createPortal, getBillingStatus } from "@/api/billing";
+import {
+  clearApiKey,
+  getStoredApiKey,
+  looksLikeAnthropicKey,
+  maskApiKey,
+  saveApiKey,
+} from "@/lib/apiKey";
+import { useAuth } from "@/context/AuthContext";
 import StatCard from "@/components/ui/StatCard";
 import PageHeader from "@/components/ui/PageHeader";
 
 export default function ProfilePage() {
+  const { user, isPro, updateProfile, changePassword } = useAuth();
   const queryClient = useQueryClient();
+
   const [showResetProgressConfirm, setShowResetProgressConfirm] = useState(false);
   const [showResetAllConfirm, setShowResetAllConfirm] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState("");
+
+  const [displayName, setDisplayName] = useState(user?.display_name ?? "");
+  const [profileMessage, setProfileMessage] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+
+  const [isBillingBusy, setIsBillingBusy] = useState(false);
+  const [billingMessage, setBillingMessage] = useState("");
+
   const [apiKeyInput, setApiKeyInput] = useState(() => getStoredApiKey());
   const [savedApiKey, setSavedApiKey] = useState(() => getStoredApiKey());
   const [apiKeyMessage, setApiKeyMessage] = useState("");
+
+  useEffect(() => {
+    setDisplayName(user?.display_name ?? "");
+  }, [user?.display_name]);
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["profile-stats"],
     queryFn: getProfileStats,
   });
 
+  const { data: billing } = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: getBillingStatus,
+  });
+
+  const handleSaveProfile = async () => {
+    const value = displayName.trim();
+    if (!value) {
+      setProfileMessage("Display name cannot be empty.");
+      return;
+    }
+    setProfileMessage("");
+    setIsSavingProfile(true);
+    try {
+      await updateProfile({ display_name: value });
+      setProfileMessage("Profile updated.");
+    } catch {
+      setProfileMessage("Failed to update profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordMessage("");
+    if (!currentPassword || !newPassword) {
+      setPasswordMessage("Enter both current and new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordMessage("New password must be at least 8 characters.");
+      return;
+    }
+    setIsSavingProfile(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setPasswordMessage("Password changed successfully.");
+    } catch {
+      setPasswordMessage("Failed to change password.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleBillingAction = async () => {
+    setBillingMessage("");
+    setIsBillingBusy(true);
+    try {
+      if (isPro) {
+        const portal = await createPortal();
+        window.location.href = portal.url;
+      } else {
+        const checkout = await createCheckout();
+        window.location.href = checkout.url;
+      }
+    } catch {
+      setBillingMessage("Unable to open billing flow. Check Stripe configuration.");
+      setIsBillingBusy(false);
+    }
+  };
+
   const handleResetProgress = async () => {
     setIsResetting(true);
     try {
       await resetProgress();
       await queryClient.invalidateQueries();
-      setResetMessage("Progress reset successfully! All study data cleared.");
+      setResetMessage("Progress reset successfully.");
       setShowResetProgressConfirm(false);
-    } catch (error) {
+    } catch {
       setResetMessage("Failed to reset progress. Please try again.");
     } finally {
       setIsResetting(false);
@@ -41,9 +143,9 @@ export default function ProfilePage() {
     try {
       await resetAll();
       await queryClient.invalidateQueries();
-      setResetMessage("All data reset successfully! Database completely cleared.");
+      setResetMessage("All your account data was reset successfully.");
       setShowResetAllConfirm(false);
-    } catch (error) {
+    } catch {
       setResetMessage("Failed to reset all data. Please try again.");
     } finally {
       setIsResetting(false);
@@ -90,13 +192,8 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={<User size={24} />}
-        title="Profile"
-        subtitle="Your study overview and settings"
-      />
+      <PageHeader icon={<User size={24} />} title="Profile" subtitle="Your account, billing, and study settings" />
 
-      {/* Profile Header */}
       <div className="duo-card p-5">
         <div className="flex items-center gap-4">
           <div
@@ -114,21 +211,105 @@ export default function ProfilePage() {
           </div>
           <div>
             <h3 style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)" }}>
-              Law Student
+              {user?.display_name ?? "Law Student"}
             </h3>
-            <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-secondary)" }}>
-              LawFlow Learner
+            <p className="inline-flex items-center gap-1" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-secondary)" }}>
+              <Mail size={14} />
+              {user?.email ?? "No email"}
             </p>
+            <div className="mt-2">
+              <span className={isPro ? "duo-badge duo-badge-gold" : "duo-badge duo-badge-blue"}>
+                {isPro ? "PRO" : "FREE"}
+              </span>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="duo-card p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <User size={18} style={{ color: "var(--blue)" }} />
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
+            Account Settings
+          </h3>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div>
+            <label className="duo-label">Display Name</label>
+            <input className="duo-input w-full" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <button onClick={handleSaveProfile} className="duo-btn duo-btn-blue w-full" disabled={isSavingProfile}>
+              {isSavingProfile ? "Saving..." : "Save Profile"}
+            </button>
+          </div>
+        </div>
+        {profileMessage && (
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>{profileMessage}</p>
+        )}
+      </div>
+
+      <div className="duo-card p-5 space-y-3">
+        <div className="flex items-center gap-3">
+          <Lock size={18} style={{ color: "var(--purple)" }} />
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
+            Change Password
+          </h3>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <input
+            className="duo-input"
+            type="password"
+            placeholder="Current password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+          <input
+            className="duo-input"
+            type="password"
+            placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </div>
+        <button onClick={handleChangePassword} disabled={isSavingProfile} className="duo-btn duo-btn-outline">
+          {isSavingProfile ? "Saving..." : "Update Password"}
+        </button>
+        {passwordMessage && (
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>{passwordMessage}</p>
+        )}
+      </div>
+
+      <div className="duo-card p-5 space-y-3">
+        <div className="flex items-center gap-3">
+          <Crown size={18} style={{ color: "var(--gold)" }} />
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
+            Subscription
+          </h3>
+        </div>
+        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-secondary)" }}>
+          Current tier: <span style={{ color: "var(--text-primary)" }}>{(billing?.tier || stats?.tier || "free").toUpperCase()}</span>
+          {billing?.subscription_status ? ` (${billing.subscription_status})` : ""}
+        </p>
+        {!isPro && billing?.limits && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>
+            <p>Tutor sessions: {billing.usage.tutor_sessions_daily}/{billing.limits.tutor_sessions_daily}</p>
+            <p>Exam generations: {billing.usage.exam_generations_daily}/{billing.limits.exam_generations_daily}</p>
+            <p>Documents: {billing.usage.document_uploads_total}/{billing.limits.document_uploads_total}</p>
+          </div>
+        )}
+        <button onClick={handleBillingAction} disabled={isBillingBusy} className="duo-btn duo-btn-green">
+          {isBillingBusy ? "Opening..." : isPro ? "Manage Subscription" : "Upgrade to Pro"}
+        </button>
+        {billingMessage && (
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--red)" }}>{billingMessage}</p>
+        )}
       </div>
 
       <div className="duo-card p-5">
         <div className="flex items-center gap-3 mb-3">
           <Key size={18} style={{ color: "var(--blue)" }} />
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
-            Anthropic API Key
-          </h3>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Anthropic API Key</h3>
         </div>
         <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)", marginBottom: 12 }}>
           Stored locally in this browser and sent only to your LawFlow backend.
@@ -149,24 +330,12 @@ export default function ProfilePage() {
             className="duo-input flex-1"
             style={{ minWidth: 320 }}
           />
-          <button
-            onClick={handleSaveApiKey}
-            className="duo-btn duo-btn-green"
-          >
-            Save Key
-          </button>
-          <button
-            onClick={handleClearApiKey}
-            className="duo-btn duo-btn-outline"
-          >
-            Clear
-          </button>
+          <button onClick={handleSaveApiKey} className="duo-btn duo-btn-green">Save Key</button>
+          <button onClick={handleClearApiKey} className="duo-btn duo-btn-outline">Clear</button>
         </div>
         <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-muted)", marginTop: 10 }}>
           Current key:{" "}
-          <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-            {maskApiKey(savedApiKey)}
-          </span>
+          <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{maskApiKey(savedApiKey)}</span>
         </p>
         {apiKeyMessage && (
           <p
@@ -195,62 +364,19 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <StatCard
-          icon={<BookOpen size={18} />}
-          label="Total Subjects"
-          value={String(stats?.total_subjects ?? 0)}
-          sub="active courses"
-          color="var(--blue)"
-        />
-        <StatCard
-          icon={<Target size={18} />}
-          label="Total Topics"
-          value={String(stats?.total_topics ?? 0)}
-          sub="concepts learned"
-          color="var(--green)"
-        />
-        <StatCard
-          icon={<Target size={18} />}
-          label="Overall Mastery"
-          value={`${stats?.overall_mastery ?? 0}%`}
-          sub="average score"
-          color="var(--purple)"
-        />
-        <StatCard
-          icon={<Clock size={18} />}
-          label="Study Hours"
-          value={String(stats?.total_study_hours ?? 0)}
-          sub="total time"
-          color="var(--orange)"
-        />
-        <StatCard
-          icon={<GraduationCap size={18} />}
-          label="Sessions"
-          value={String(stats?.total_sessions ?? 0)}
-          sub="study sessions"
-          color="var(--purple)"
-        />
-        <StatCard
-          icon={<FileText size={18} />}
-          label="Documents"
-          value={String(stats?.total_documents ?? 0)}
-          sub="uploaded files"
-          color="var(--blue)"
-        />
+        <StatCard icon={<BookOpen size={18} />} label="Total Subjects" value={String(stats?.total_subjects ?? 0)} sub="active courses" color="var(--blue)" />
+        <StatCard icon={<Target size={18} />} label="Total Topics" value={String(stats?.total_topics ?? 0)} sub="concepts learned" color="var(--green)" />
+        <StatCard icon={<Target size={18} />} label="Overall Mastery" value={`${stats?.overall_mastery ?? 0}%`} sub="average score" color="var(--purple)" />
+        <StatCard icon={<Clock size={18} />} label="Study Hours" value={String(stats?.total_study_hours ?? 0)} sub="total time" color="var(--orange)" />
+        <StatCard icon={<GraduationCap size={18} />} label="Sessions" value={String(stats?.total_sessions ?? 0)} sub="study sessions" color="var(--purple)" />
+        <StatCard icon={<FileText size={18} />} label="Documents" value={String(stats?.total_documents ?? 0)} sub="uploaded files" color="var(--blue)" />
       </div>
 
-      {/* Danger Zone */}
-      <div
-        className="duo-card p-5"
-        style={{ backgroundColor: "var(--red-bg)", borderColor: "var(--red)" }}
-      >
+      <div className="duo-card p-5" style={{ backgroundColor: "var(--red-bg)", borderColor: "var(--red)" }}>
         <div className="flex items-center gap-3 mb-4">
           <AlertTriangle size={20} style={{ color: "var(--red)" }} />
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
-            Danger Zone
-          </h3>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Danger Zone</h3>
         </div>
         <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 24, color: "var(--text-muted)" }}>
           These actions cannot be undone. Please be certain before proceeding.
@@ -264,7 +390,7 @@ export default function ProfilePage() {
             <div>
               <h4 style={{ fontWeight: 700, color: "var(--text-primary)" }}>Reset Progress</h4>
               <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)" }}>
-                Clear all study progress, mastery scores, and sessions. Keeps uploaded documents.
+                Clear study progress, mastery scores, and sessions. Keeps uploaded documents.
               </p>
             </div>
             <button
@@ -285,7 +411,7 @@ export default function ProfilePage() {
             <div>
               <h4 style={{ fontWeight: 700, color: "var(--text-primary)" }}>Reset All Data</h4>
               <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-muted)" }}>
-                Complete database wipe. Removes all data including documents, progress, and settings.
+                Delete all data in your account, including documents and progress.
               </p>
             </div>
             <button
@@ -301,7 +427,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Reset Progress Confirmation Modal */}
       {showResetProgressConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
           <div className="duo-card max-w-md w-full mx-4 p-6">
@@ -309,8 +434,8 @@ export default function ProfilePage() {
               Confirm Reset Progress
             </h3>
             <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 24, color: "var(--text-muted)" }}>
-              This will permanently delete all your study progress, mastery scores, sessions, and assessments.
-              Your uploaded documents will be preserved. This action cannot be undone.
+              This will permanently delete your study progress, mastery scores, sessions, and assessments.
+              Uploaded documents are preserved.
             </p>
             <div className="flex gap-3">
               <button
@@ -334,7 +459,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Reset All Confirmation Modal */}
       {showResetAllConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
           <div className="duo-card max-w-md w-full mx-4 p-6">
@@ -342,8 +466,7 @@ export default function ProfilePage() {
               Confirm Reset All Data
             </h3>
             <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 24, color: "var(--text-muted)" }}>
-              This will permanently delete ALL data in the database including documents, progress, sessions,
-              assessments, and all other data. This is a complete wipe and cannot be undone.
+              This permanently deletes all data in your account including documents, progress, sessions, and assessments.
             </p>
             <div className="flex gap-3">
               <button

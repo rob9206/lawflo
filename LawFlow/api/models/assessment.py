@@ -19,8 +19,12 @@ def _now() -> datetime:
 
 class Assessment(Base):
     __tablename__ = "assessments"
+    __table_args__ = (
+        Index("idx_asmt_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     session_id = Column(String, ForeignKey("study_sessions.id"))
     assessment_type = Column(String, nullable=False)  # multiple_choice, essay, issue_spot, mixed
     subject = Column(String, nullable=False)
@@ -58,10 +62,12 @@ class Assessment(Base):
 class AssessmentQuestion(Base):
     __tablename__ = "assessment_questions"
     __table_args__ = (
+        Index("idx_aq_user", "user_id"),
         Index("idx_aq_assessment", "assessment_id"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     assessment_id = Column(String, ForeignKey("assessments.id", ondelete="CASCADE"), nullable=False)
     question_index = Column(Integer, nullable=False)
     question_type = Column(String, nullable=False)  # mc, essay, issue_spot

@@ -48,14 +48,18 @@ ACTIVITY_ACHIEVEMENT_MAP = {
 # - perfect_exam -> checked when exam score == 100
 
 
-def seed_achievements():
+def seed_achievements(user_id: str | None = None):
     """Insert achievements that don't exist yet. Idempotent."""
     with get_db() as db:
-        existing = {a.achievement_key for a in db.query(Achievement).all()}
+        existing = {
+            a.achievement_key
+            for a in db.query(Achievement).filter_by(user_id=user_id).all()
+        }
         added = 0
         for key, title, desc, icon, rarity, points, target in ACHIEVEMENT_CATALOG:
             if key not in existing:
                 db.add(Achievement(
+                    user_id=user_id,
                     achievement_key=key,
                     title=title,
                     description=desc,

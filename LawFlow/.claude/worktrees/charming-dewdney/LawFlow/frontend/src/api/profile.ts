@@ -9,6 +9,7 @@ export interface ProfileStats {
   total_assessments: number;
   total_documents: number;
   total_flashcards: number;
+  tier: "free" | "pro";
 }
 
 export interface ApiKeyStatus {

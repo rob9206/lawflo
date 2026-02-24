@@ -125,6 +125,7 @@ def generate_teaching_plan(
     subject: str,
     max_topics: int = 10,
     available_minutes: int | None = None,
+    user_id: str | None = None,
 ) -> dict:
     """Generate a prioritized teaching plan for a subject.
 
@@ -141,14 +142,14 @@ def generate_teaching_plan(
         auto_session config for the highest-priority topic.
     """
     # Get exam weights (empty dict if no exams uploaded for this subject)
-    exam_weights = get_aggregated_topic_weights(subject)
+    exam_weights = get_aggregated_topic_weights(subject, user_id=user_id)
     has_exam_data = bool(exam_weights)
 
     with get_db() as db:
         # Get all topics for this subject with mastery data
-        topics = db.query(TopicMastery).filter_by(subject=subject).all()
+        topics = db.query(TopicMastery).filter_by(user_id=user_id, subject=subject).all()
 
-        subject_record = db.query(SubjectMastery).filter_by(subject=subject).first()
+        subject_record = db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject).first()
         subject_display = subject_record.display_name if subject_record else subject
 
         if not topics:
@@ -170,7 +171,7 @@ def generate_teaching_plan(
         for t in topics:
             count = (
                 db.query(KnowledgeChunk)
-                .filter_by(subject=subject, topic=t.topic)
+                .filter_by(user_id=user_id, subject=subject, topic=t.topic)
                 .count()
             )
             chunk_counts[t.topic] = count
@@ -288,13 +289,17 @@ def _build_opening_message(
 def get_next_topic(
     subject: str,
     available_minutes: int | None = None,
+    user_id: str | None = None,
 ) -> dict | None:
     """Quick helper: get just the single highest-priority topic to study next.
 
     Useful for a "What should I study right now?" button.
     """
     plan = generate_teaching_plan(
-        subject, max_topics=1, available_minutes=available_minutes,
+        subject,
+        max_topics=1,
+        available_minutes=available_minutes,
+        user_id=user_id,
     )
     if plan["teaching_plan"]:
         return {

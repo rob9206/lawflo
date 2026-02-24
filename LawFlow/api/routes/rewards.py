@@ -8,34 +8,43 @@ from flask import Blueprint, request, jsonify
 
 from api.config import config
 from api.errors import ValidationError
+from api.middleware.auth import get_current_user, get_current_user_id, login_required
 from api.services import rewards_engine
 from api.services.database import get_db
 from api.models.document import Document
+from api.services.tier_limits import check_tier_limit
 
 bp = Blueprint("rewards", __name__, url_prefix="/api/rewards")
 
 ALLOWED_EXTENSIONS = {"pdf", "pptx", "docx"}
 
 
+@bp.before_request
+@login_required
+def require_auth():
+    return None
+
+
 @bp.route("/summary", methods=["GET"])
 def summary():
     """Current balance, level, streak, title, and recent transactions."""
-    return jsonify(rewards_engine.get_summary())
+    return jsonify(rewards_engine.get_summary(user_id=get_current_user_id()))
 
 
 @bp.route("/ledger", methods=["GET"])
 def ledger():
     """Paginated point transaction history."""
+    user_id = get_current_user_id()
     limit = request.args.get("limit", 50, type=int)
     offset = request.args.get("offset", 0, type=int)
     activity_type = request.args.get("type")
-    return jsonify(rewards_engine.get_ledger(limit, offset, activity_type))
+    return jsonify(rewards_engine.get_ledger(limit, offset, activity_type, user_id=user_id))
 
 
 @bp.route("/achievements", methods=["GET"])
 def achievements():
     """All achievements with locked/unlocked state and progress."""
-    return jsonify(rewards_engine.get_achievements())
+    return jsonify(rewards_engine.get_achievements(user_id=get_current_user_id()))
 
 
 @bp.route("/past-test", methods=["POST"])
@@ -46,6 +55,7 @@ def upload_past_test():
     Accepts graded exam papers, processes them, analyzes patterns, and
     awards points.
     """
+    user_id = get_current_user_id()
     if "file" not in request.files:
         raise ValidationError("No file provided")
 
@@ -74,8 +84,10 @@ def upload_past_test():
 
     # Create document record tagged as past_test
     with get_db() as db:
+        check_tier_limit(db, get_current_user(), "document_uploads_total")
         doc = Document(
             id=doc_id,
+            user_id=user_id,
             filename=file.filename,
             file_type=ext,
             file_path=file_path,
@@ -87,7 +99,7 @@ def upload_past_test():
         db.add(doc)
 
     # Process and analyze in background
-    thread = threading.Thread(target=_process_past_test, args=(doc_id, subject))
+    thread = threading.Thread(target=_process_past_test, args=(doc_id, subject, user_id))
     thread.daemon = True
     thread.start()
 
@@ -99,7 +111,7 @@ def upload_past_test():
     }), 201
 
 
-def _process_past_test(doc_id: str, subject: str):
+def _process_past_test(doc_id: str, subject: str, user_id: str):
     """Background: process document, analyze exam patterns, award points."""
     from api.services.document_processor import extract_document, chunk_sections
     from api.services.knowledge_builder import tag_chunks_batch
@@ -109,7 +121,7 @@ def _process_past_test(doc_id: str, subject: str):
 
     try:
         with get_db() as db:
-            doc = db.query(Document).filter_by(id=doc_id).first()
+            doc = db.query(Document).filter_by(id=doc_id, user_id=user_id).first()
             if not doc:
                 return
             doc.processing_status = "processing"
@@ -125,6 +137,7 @@ def _process_past_test(doc_id: str, subject: str):
         with get_db() as db:
             for i, t in enumerate(tagged):
                 db.add(KnowledgeChunk(
+                    user_id=user_id,
                     document_id=doc_id,
                     content=t["content"],
                     summary=t.get("summary"),
@@ -137,7 +150,7 @@ def _process_past_test(doc_id: str, subject: str):
                     case_name=t.get("case_name"),
                     key_terms=t.get("key_terms", "[]"),
                 ))
-            doc = db.query(Document).filter_by(id=doc_id).first()
+            doc = db.query(Document).filter_by(id=doc_id, user_id=user_id).first()
             if doc:
                 doc.processing_status = "completed"
                 doc.total_chunks = len(tagged)
@@ -145,7 +158,7 @@ def _process_past_test(doc_id: str, subject: str):
         # Try exam analysis for blueprint generation
         try:
             from api.services.exam_analyzer import analyze_exam
-            analyze_exam(doc_id)
+            analyze_exam(doc_id, user_id=user_id)
             analysis_succeeded = True
         except Exception:
             pass  # Analysis is a bonus, not required
@@ -159,11 +172,12 @@ def _process_past_test(doc_id: str, subject: str):
             description=f"Uploaded graded past test ({subject})",
             base_amount=base + bonus_amount,
             metadata={"subject": subject, "analysis_succeeded": analysis_succeeded},
+            user_id=user_id,
         )
 
     except Exception as e:
         with get_db() as db:
-            doc = db.query(Document).filter_by(id=doc_id).first()
+            doc = db.query(Document).filter_by(id=doc_id, user_id=user_id).first()
             if doc:
                 doc.processing_status = "error"
                 doc.error_message = str(e)

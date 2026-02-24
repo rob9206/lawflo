@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from api.config import config
+import api.models  # noqa: F401 - ensure all model metadata is registered
 from api.models.base import Base
 
 logger = logging.getLogger(__name__)

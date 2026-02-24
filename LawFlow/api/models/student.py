@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Integer, Float, DateTime, Index, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Index, UniqueConstraint
 
 from api.models.base import Base
 
@@ -18,9 +18,14 @@ def _now() -> datetime:
 
 class SubjectMastery(Base):
     __tablename__ = "subject_mastery"
+    __table_args__ = (
+        UniqueConstraint("user_id", "subject"),
+        Index("idx_sm_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
-    subject = Column(String, unique=True, nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    subject = Column(String, nullable=False)
     display_name = Column(String, nullable=False)
     mastery_score = Column(Float, default=0.0)  # 0-100
     total_study_time_minutes = Column(Integer, default=0)
@@ -46,12 +51,14 @@ class SubjectMastery(Base):
 class TopicMastery(Base):
     __tablename__ = "topic_mastery"
     __table_args__ = (
-        UniqueConstraint("subject", "topic"),
-        Index("idx_tm_subject", "subject"),
+        UniqueConstraint("user_id", "subject", "topic"),
+        Index("idx_tm_user", "user_id"),
+        Index("idx_tm_subject", "user_id", "subject"),
         Index("idx_tm_score", "mastery_score"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     subject = Column(String, nullable=False)
     topic = Column(String, nullable=False)
     display_name = Column(String, nullable=False)

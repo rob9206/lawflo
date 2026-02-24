@@ -19,8 +19,12 @@ def _now() -> datetime:
 
 class StudyPlan(Base):
     __tablename__ = "study_plans"
+    __table_args__ = (
+        Index("idx_sp_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     name = Column(String, nullable=False)
     exam_date = Column(DateTime)
     subjects = Column(Text, nullable=False)  # JSON array
@@ -49,11 +53,13 @@ class StudyPlan(Base):
 class PlanTask(Base):
     __tablename__ = "plan_tasks"
     __table_args__ = (
+        Index("idx_pt_user", "user_id"),
         Index("idx_pt_plan", "plan_id"),
         Index("idx_pt_date", "scheduled_date"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     plan_id = Column(String, ForeignKey("study_plans.id", ondelete="CASCADE"), nullable=False)
     subject = Column(String, nullable=False)
     topic = Column(String)

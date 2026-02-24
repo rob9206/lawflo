@@ -178,21 +178,22 @@ def generate_exam(
     exam_format: str = "mixed",
     num_questions: int = 5,
     time_minutes: int = 60,
+    user_id: str | None = None,
 ) -> dict:
     """Generate a complete practice exam weighted by exam blueprint + mastery gaps.
 
     Returns the Assessment dict with all questions included.
     """
     # Get topic weights and mastery data
-    exam_weights = get_aggregated_topic_weights(subject)
+    exam_weights = get_aggregated_topic_weights(subject, user_id=user_id)
     has_exam_data = bool(exam_weights)
 
     with get_db() as db:
-        topics = db.query(TopicMastery).filter_by(subject=subject).all()
+        topics = db.query(TopicMastery).filter_by(user_id=user_id, subject=subject).all()
         if not topics:
             raise ValueError(f"No topics found for {subject}. Run seed script first.")
 
-        subject_record = db.query(SubjectMastery).filter_by(subject=subject).first()
+        subject_record = db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject).first()
 
     # Compute priority scores for topic weighting
     default_weight = 1.0 / len(topics) if topics else 0.1
@@ -218,7 +219,7 @@ def generate_exam(
         fmt = ""
         if has_exam_data:
             # Find question format from blueprint
-            blueprints = get_exam_blueprints(subject)
+            blueprints = get_exam_blueprints(subject, user_id=user_id)
             if blueprints:
                 for tw in blueprints[0].get("topics_tested", []):
                     if tw["topic"] == tp["topic"]:
@@ -233,7 +234,7 @@ def generate_exam(
     # Build exam context from blueprints
     exam_context_str = ""
     if has_exam_data:
-        blueprints = get_exam_blueprints(subject)
+        blueprints = get_exam_blueprints(subject, user_id=user_id)
         if blueprints:
             bp = blueprints[0]
             exam_context_str = (
@@ -248,7 +249,10 @@ def generate_exam(
     with get_db() as db:
         chunks = (
             db.query(KnowledgeChunk)
-            .filter(KnowledgeChunk.subject == subject)
+            .filter(
+                KnowledgeChunk.user_id == user_id,
+                KnowledgeChunk.subject == subject,
+            )
             .limit(8)
             .all()
         )
@@ -292,6 +296,7 @@ def generate_exam(
         topics_list = list({q.get("topic", "") for q in questions_data})
 
         assessment = Assessment(
+            user_id=user_id,
             assessment_type=exam_format,
             subject=subject,
             topics=json.dumps(topics_list),
@@ -304,6 +309,7 @@ def generate_exam(
 
         for i, q_data in enumerate(questions_data):
             question = AssessmentQuestion(
+                user_id=user_id,
                 assessment_id=assessment.id,
                 question_index=i,
                 question_type=q_data.get("question_type", "essay"),
@@ -324,10 +330,14 @@ def generate_exam(
     return result
 
 
-def grade_answer(question_id: str, student_answer: str) -> dict:
+def grade_answer(
+    question_id: str,
+    student_answer: str,
+    user_id: str | None = None,
+) -> dict:
     """Grade a single answer. MC is auto-graded; essay/issue_spot uses Claude."""
     with get_db() as db:
-        question = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+        question = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
         if not question:
             raise ValueError(f"Question {question_id} not found")
 
@@ -338,14 +348,32 @@ def grade_answer(question_id: str, student_answer: str) -> dict:
         options = json.loads(question.options) if question.options else None
 
     if q_type == "mc":
-        return _grade_mc(question_id, student_answer, model_answer, options)
+        return _grade_mc(question_id, student_answer, model_answer, options, user_id=user_id)
     elif q_type == "issue_spot":
-        return _grade_issue_spot(question_id, q_text, student_answer, model_answer)
+        return _grade_issue_spot(
+            question_id,
+            q_text,
+            student_answer,
+            model_answer,
+            user_id=user_id,
+        )
     else:
-        return _grade_essay(question_id, q_text, student_answer, model_answer)
+        return _grade_essay(
+            question_id,
+            q_text,
+            student_answer,
+            model_answer,
+            user_id=user_id,
+        )
 
 
-def _grade_mc(question_id: str, answer: str, correct: str, options: list | None) -> dict:
+def _grade_mc(
+    question_id: str,
+    answer: str,
+    correct: str,
+    options: list | None,
+    user_id: str | None = None,
+) -> dict:
     """Auto-grade a multiple choice question."""
     # Normalize: extract just the letter
     answer_letter = answer.strip().upper()[:1]
@@ -359,7 +387,7 @@ def _grade_mc(question_id: str, answer: str, correct: str, options: list | None)
         feedback += f"\n\nExplanation: {correct}"
 
     with get_db() as db:
-        q = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+        q = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
         q.student_answer = answer
         q.is_correct = 1 if is_correct else 0
         q.score = score
@@ -368,11 +396,17 @@ def _grade_mc(question_id: str, answer: str, correct: str, options: list | None)
         return q.to_dict()
 
 
-def _grade_essay(question_id: str, question_text: str, answer: str, model_answer: str) -> dict:
+def _grade_essay(
+    question_id: str,
+    question_text: str,
+    answer: str,
+    model_answer: str,
+    user_id: str | None = None,
+) -> dict:
     """Grade an essay question using Claude IRAC rubric."""
     if not answer or len(answer.strip()) < 10:
         with get_db() as db:
-            q = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+            q = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
             q.student_answer = answer
             q.score = 0.0
             q.feedback = json.dumps({
@@ -425,7 +459,7 @@ def _grade_essay(question_id: str, question_text: str, answer: str, model_answer
     grading["overall_score"] = round(weighted_score, 1)
 
     with get_db() as db:
-        q = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+        q = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
         q.student_answer = answer
         q.score = weighted_score
         q.feedback = json.dumps(grading)
@@ -433,11 +467,17 @@ def _grade_essay(question_id: str, question_text: str, answer: str, model_answer
         return q.to_dict()
 
 
-def _grade_issue_spot(question_id: str, question_text: str, answer: str, model_answer: str) -> dict:
+def _grade_issue_spot(
+    question_id: str,
+    question_text: str,
+    answer: str,
+    model_answer: str,
+    user_id: str | None = None,
+) -> dict:
     """Grade an issue-spotting exercise using Claude."""
     if not answer or len(answer.strip()) < 10:
         with get_db() as db:
-            q = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+            q = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
             q.student_answer = answer
             q.score = 0.0
             q.feedback = json.dumps({
@@ -475,7 +515,7 @@ def _grade_issue_spot(question_id: str, question_text: str, answer: str, model_a
         grading = {"score": 50, "issues_found": [], "issues_missed": [], "feedback": "Grading parse error."}
 
     with get_db() as db:
-        q = db.query(AssessmentQuestion).filter_by(id=question_id).first()
+        q = db.query(AssessmentQuestion).filter_by(id=question_id, user_id=user_id).first()
         q.student_answer = answer
         q.score = float(grading.get("score", 50))
         q.feedback = json.dumps(grading)
@@ -483,19 +523,19 @@ def _grade_issue_spot(question_id: str, question_text: str, answer: str, model_a
         return q.to_dict()
 
 
-def complete_exam(assessment_id: str) -> dict:
+def complete_exam(assessment_id: str, user_id: str | None = None) -> dict:
     """Finalize an exam — compute overall score, update mastery, generate summary.
 
     Returns the complete results dict.
     """
     with get_db() as db:
-        assessment = db.query(Assessment).filter_by(id=assessment_id).first()
+        assessment = db.query(Assessment).filter_by(id=assessment_id, user_id=user_id).first()
         if not assessment:
             raise ValueError(f"Assessment {assessment_id} not found")
 
         questions = (
             db.query(AssessmentQuestion)
-            .filter_by(assessment_id=assessment_id)
+            .filter_by(assessment_id=assessment_id, user_id=user_id)
             .order_by(AssessmentQuestion.question_index)
             .all()
         )
@@ -544,7 +584,7 @@ def complete_exam(assessment_id: str) -> dict:
         db.flush()
 
         # Update mastery scores based on exam performance
-        _update_mastery_from_exam(assessment.subject, topic_scores, db)
+        _update_mastery_from_exam(assessment.subject, topic_scores, db, user_id=user_id)
 
         result = assessment.to_dict()
         result["questions"] = [q.to_dict() for q in questions]
@@ -558,6 +598,7 @@ def complete_exam(assessment_id: str) -> dict:
                 f"Completed {assessment.subject} exam ({assessment.score:.0f}%)",
                 base_amount=50 + int(assessment.score / 2),
                 metadata={"subject": assessment.subject, "score": assessment.score},
+                user_id=user_id,
             )
             result["points_awarded"] = reward
         except Exception:
@@ -566,7 +607,12 @@ def complete_exam(assessment_id: str) -> dict:
     return result
 
 
-def _update_mastery_from_exam(subject: str, topic_scores: dict[str, list[float]], db):
+def _update_mastery_from_exam(
+    subject: str,
+    topic_scores: dict[str, list[float]],
+    db,
+    user_id: str | None = None,
+):
     """Update mastery scores based on exam performance.
 
     Exam results are a strong signal — a 90% score on an exam question
@@ -581,7 +627,7 @@ def _update_mastery_from_exam(subject: str, topic_scores: dict[str, list[float]]
         avg_score = sum(scores) / len(scores)
 
         topic = db.query(TopicMastery).filter_by(
-            subject=subject, topic=topic_name
+            user_id=user_id, subject=subject, topic=topic_name
         ).first()
         if not topic:
             continue
@@ -601,25 +647,25 @@ def _update_mastery_from_exam(subject: str, topic_scores: dict[str, list[float]]
                 topic.incorrect_count += 1
 
     # Update subject-level mastery
-    subj = db.query(SubjectMastery).filter_by(subject=subject).first()
+    subj = db.query(SubjectMastery).filter_by(user_id=user_id, subject=subject).first()
     if subj:
-        all_topics = db.query(TopicMastery).filter_by(subject=subject).all()
+        all_topics = db.query(TopicMastery).filter_by(user_id=user_id, subject=subject).all()
         if all_topics:
             subj.mastery_score = sum(t.mastery_score for t in all_topics) / len(all_topics)
         subj.assessments_count += 1
         subj.last_studied_at = datetime.now(timezone.utc)
 
 
-def get_exam_results(assessment_id: str) -> dict | None:
+def get_exam_results(assessment_id: str, user_id: str | None = None) -> dict | None:
     """Get full exam results with questions and grading details."""
     with get_db() as db:
-        assessment = db.query(Assessment).filter_by(id=assessment_id).first()
+        assessment = db.query(Assessment).filter_by(id=assessment_id, user_id=user_id).first()
         if not assessment:
             return None
 
         questions = (
             db.query(AssessmentQuestion)
-            .filter_by(assessment_id=assessment_id)
+            .filter_by(assessment_id=assessment_id, user_id=user_id)
             .order_by(AssessmentQuestion.question_index)
             .all()
         )
@@ -664,10 +710,17 @@ def get_exam_results(assessment_id: str) -> dict | None:
         return result
 
 
-def get_exam_history(subject: str | None = None, limit: int = 10) -> list[dict]:
+def get_exam_history(
+    subject: str | None = None,
+    limit: int = 10,
+    user_id: str | None = None,
+) -> list[dict]:
     """Get past exam attempts."""
     with get_db() as db:
-        query = db.query(Assessment).filter(Assessment.completed_at.isnot(None))
+        query = db.query(Assessment).filter(
+            Assessment.user_id == user_id,
+            Assessment.completed_at.isnot(None),
+        )
         if subject:
             query = query.filter_by(subject=subject)
         exams = query.order_by(Assessment.completed_at.desc()).limit(limit).all()

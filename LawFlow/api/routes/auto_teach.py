@@ -8,9 +8,12 @@ import time
 from flask import Blueprint, request, jsonify, Response
 
 from api.errors import ValidationError, NotFoundError
+from api.middleware.auth import get_current_user, get_current_user_id, login_required
 from api.services.auto_teach import generate_teaching_plan, get_next_topic
 from api.services.exam_analyzer import analyze_exam, get_exam_blueprints
 from api.services import tutor_engine
+from api.services.database import get_db
+from api.services.tier_limits import check_tier_limit
 
 _PERF_TAG_RE = re.compile(r"<performance>[\s\S]*?</performance>")
 _PRACTICE_TAG_RE = re.compile(r"<practice_questions>[\s\S]*?</practice_questions>")
@@ -43,6 +46,12 @@ def _debug_log(hypothesis_id: str, message: str, data: dict):
 bp = Blueprint("auto_teach", __name__, url_prefix="/api/auto-teach")
 
 
+@bp.before_request
+@login_required
+def require_auth():
+    return None
+
+
 @bp.route("/plan/<subject>", methods=["GET"])
 def get_teaching_plan(subject: str):
     """Generate a prioritized teaching plan for a subject.
@@ -51,6 +60,7 @@ def get_teaching_plan(subject: str):
         max_topics: int (default 10)
         available_minutes: int (optional - constrain plan to time budget)
     """
+    user_id = get_current_user_id()
     max_topics = request.args.get("max_topics", 10, type=int)
     available_minutes = request.args.get("available_minutes", type=int)
 
@@ -58,6 +68,7 @@ def get_teaching_plan(subject: str):
         subject=subject,
         max_topics=max_topics,
         available_minutes=available_minutes,
+        user_id=user_id,
     )
     return jsonify(plan)
 
@@ -65,7 +76,7 @@ def get_teaching_plan(subject: str):
 @bp.route("/next/<subject>", methods=["GET"])
 def next_topic(subject: str):
     """Get the single highest-priority topic to study right now."""
-    result = get_next_topic(subject)
+    result = get_next_topic(subject, user_id=get_current_user_id())
     if not result:
         return jsonify({"message": f"No topics found for {subject}"}), 404
     return jsonify(result)
@@ -82,6 +93,7 @@ def start_auto_session():
         "topic": "consideration"  (optional — auto-picks highest priority if omitted)
     }
     """
+    user_id = get_current_user_id()
     data = request.get_json()
     if not data or "subject" not in data:
         raise ValidationError("subject is required")
@@ -107,7 +119,7 @@ def start_auto_session():
 
     # If no topic specified, auto-pick the highest priority one
     if not topic:
-        next_t = get_next_topic(subject, available_minutes=available_minutes)
+        next_t = get_next_topic(subject, available_minutes=available_minutes, user_id=user_id)
         if not next_t:
             return jsonify({"error": f"No topics found for {subject}"}), 404
         auto_session = next_t.get("auto_session")
@@ -128,11 +140,15 @@ def start_auto_session():
         from api.services.exam_analyzer import get_aggregated_topic_weights
 
         with get_db() as db:
-            t = db.query(TopicMastery).filter_by(subject=subject, topic=topic).first()
+            t = db.query(TopicMastery).filter_by(
+                user_id=user_id,
+                subject=subject,
+                topic=topic,
+            ).first()
             mastery = t.mastery_score if t else 0.0
             display = t.display_name if t else topic
 
-        exam_weights = get_aggregated_topic_weights(subject)
+        exam_weights = get_aggregated_topic_weights(subject, user_id=user_id)
         has_exam_data = bool(exam_weights)
         mode, mode_reason = select_teaching_mode(mastery, has_exam_data)
 
@@ -151,12 +167,17 @@ def start_auto_session():
         )
         opening = _build_opening_message(target, has_exam_data, available_minutes)
 
+    with get_db() as db:
+        check_tier_limit(db, get_current_user(), "auto_teach_sessions_daily")
+
     # Create the session
     session = tutor_engine.create_session(
         mode=mode,
         subject=subject,
         topics=[topic],
         available_minutes=available_minutes,
+        session_type="auto_teach",
+        user_id=user_id,
     )
 
     # Stream the opening response, filtering <performance> metadata
@@ -167,6 +188,7 @@ def start_auto_session():
                 session["id"],
                 opening,
                 api_key_override=header_key,
+                user_id=user_id,
             ):
                 text = perf_buf + chunk
                 perf_buf = ""
@@ -222,7 +244,7 @@ def analyze_exam_document(document_id: str):
     - High-yield summary
     """
     try:
-        blueprint = analyze_exam(document_id)
+        blueprint = analyze_exam(document_id, user_id=get_current_user_id())
         return jsonify(blueprint), 201
     except ValueError as e:
         raise ValidationError(str(e))
@@ -232,5 +254,5 @@ def analyze_exam_document(document_id: str):
 def list_exam_blueprints():
     """List all exam blueprints, optionally filtered by subject."""
     subject = request.args.get("subject")
-    blueprints = get_exam_blueprints(subject)
+    blueprints = get_exam_blueprints(subject, user_id=get_current_user_id())
     return jsonify(blueprints)

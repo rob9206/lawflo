@@ -19,11 +19,13 @@ def _now() -> datetime:
 class SpacedRepetitionCard(Base):
     __tablename__ = "spaced_repetition_cards"
     __table_args__ = (
+        Index("idx_src_user", "user_id"),
         Index("idx_src_review", "next_review"),
-        Index("idx_src_subject", "subject"),
+        Index("idx_src_subject", "user_id", "subject"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     chunk_id = Column(String, ForeignKey("knowledge_chunks.id"))
     subject = Column(String, nullable=False)
     topic = Column(String)

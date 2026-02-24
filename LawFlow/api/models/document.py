@@ -19,8 +19,12 @@ def _now() -> datetime:
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("idx_doc_user", "user_id"),
+    )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     filename = Column(String, nullable=False)
     file_type = Column(String, nullable=False)  # pdf, pptx, docx
     file_path = Column(String, nullable=False)
@@ -54,13 +58,15 @@ class Document(Base):
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
     __table_args__ = (
-        Index("idx_kc_subject", "subject"),
-        Index("idx_kc_topic", "subject", "topic"),
+        Index("idx_kc_user", "user_id"),
+        Index("idx_kc_subject", "user_id", "subject"),
+        Index("idx_kc_topic", "user_id", "subject", "topic"),
         Index("idx_kc_type", "content_type"),
         Index("idx_kc_document", "document_id"),
     )
 
     id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     document_id = Column(String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
     summary = Column(Text)
